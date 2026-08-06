@@ -1,13 +1,42 @@
-# Python
+# Python bytecode and tooling caches
 __pycache__/
 *.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Packaging outputs
+build/
+dist/
+*.egg-info/
+
+# Notebook outputs
 .ipynb_checkpoints/
 
-# Data
+# Local environments and secrets
+.env
+.env.*
+!.env.example
+.venv/
+.venv-*/
+venv/
+env/
+
+# Generated data (keep directory placeholders)
 data/raw/*
 !data/raw/.gitkeep
+data/interim/*
+!data/interim/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
 
-# Environment
-.env
-.venv
-env/
+# Generated model and experiment artifacts
+models/*
+!models/.gitkeep
+artifacts/
+mlruns/
+mlartifacts/
+mlflow.db
+*.log

@@ -1,59 +1,41 @@
-# app/main.py
+"""Optional Streamlit client for the domain-neutral Phase 1 example."""
+
 import streamlit as st
-import sys
-import os
 
-# Add project root to path so we can import src
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from ml_project_template.config import get_settings
+from ml_project_template.predict import predict_record
 
-from src.inference import make_prediction
-import src.config as config
 
-# --- UI Setup ---
-st.set_page_config(page_title=f"{config.MODEL_NAME} Predictor", page_icon="💳")
+settings = get_settings()
 
-st.title("💳 CreditGuard: Risk Analyzer")
-st.markdown("Enter customer details to predict default risk.")
+st.set_page_config(page_title="ML Project Template")
+st.title("Generic Binary Classification Example")
+st.caption("This form exists to prove the raw-input-to-model contract works.")
 
-# --- Input Form ---
 with st.form("prediction_form"):
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        limit_bal = st.number_input("Credit Limit ($)", min_value=0, value=10000)
-        age = st.number_input("Age", min_value=18, max_value=100, value=30)
-    
-    with col2:
-        bill_amt = st.number_input("Last Bill Amount ($)", value=0)
-        pay_amt = st.number_input("Last Payment Amount ($)", value=0)
-    
-    # Add more inputs here matching dataset columns...
-    
-    submitted = st.form_submit_button("Analyze Risk")
+    numeric_feature_1 = st.number_input("numeric_feature_1", value=0.25)
+    numeric_feature_2 = st.number_input("numeric_feature_2", value=-0.50)
+    category_feature_1 = st.selectbox(
+        "category_feature_1",
+        ["category_a", "category_b", "category_c", "unseen_category"],
+    )
+    category_feature_2 = st.selectbox(
+        "category_feature_2",
+        ["group_1", "group_2"],
+    )
+    submitted = st.form_submit_button("Predict")
 
-# --- Logic ---
 if submitted:
-    # 1. Prepare Data
-    input_data = {
-        "limit_bal": limit_bal,
-        "age": age,
-        "bill_amt1": bill_amt,
-        "pay_amt1": pay_amt
-        # Ensure these keys match the column names in the training data!
+    record = {
+        "numeric_feature_1": numeric_feature_1,
+        "numeric_feature_2": numeric_feature_2,
+        "category_feature_1": category_feature_1,
+        "category_feature_2": category_feature_2,
     }
-    
-    # 2. Call the Engine
-    with st.spinner("Analyzing..."):
-        result = make_prediction(input_data)
-        
-    # 3. Display Result
-    if result["status"] == "Success":
-        prob = result["probability"]
-        
-        if prob > 0.5:
-            st.error(f"⚠️ High Risk! (Probability: {prob:.2%})")
-        else:
-            st.success(f"✅ Low Risk. (Probability: {prob:.2%})")
-            
-    else:
-        st.error(f"Error: {result['error']}")
+    try:
+        result = predict_record(record, settings.model_artifact_path)
+        st.success(f"Prediction: {result['prediction']}")
+        if result["probability"] is not None:
+            st.metric("Class 1 probability", f"{result['probability']:.2%}")
+    except (FileNotFoundError, ValueError) as error:
+        st.error(str(error))

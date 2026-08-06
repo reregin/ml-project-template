@@ -1,126 +1,171 @@
-# 🛡️ Data Science Project Template
+# ML Project Template
 
-![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)
-![Streamlit](https://img.shields.io/badge/Streamlit-App-ff4b4b.svg)
-![MLflow](https://img.shields.io/badge/MLflow-Tracking-0194E2.svg)
-![Status](https://img.shields.io/badge/Status-Development-green.svg)
-![License](https://img.shields.io/badge/License-MIT-lightgrey.svg)
+An executable, progressively adoptable template for tabular machine-learning
+projects. The current baseline covers a domain-neutral binary-classification
+workflow from raw data through a fitted model pipeline and raw-input inference.
 
-A production-ready, modular structure for Data Science and Machine Learning projects. Designed to separate **experimentation** (notebooks) from **engineering** (src), ensuring reproducibility and scalability from Day 1.
+The repository is intentionally layered:
 
-**Key Features:**
-- 🔬 **MLflow Integration** - Automated experiment tracking and model versioning
-- 🛡️ **Data Leakage Prevention** - Split-first strategy ensuring test data never contaminates training
-- 📦 **Modular Design** - Clean separation between research and production code
+- **DS track:** notebooks, exploration, preprocessing, training, and evaluation;
+- **ML engineering track:** installable package, reproducible commands, and one
+  authoritative training/inference artifact;
+- **MLOps track:** planned CI, packaging, serving, monitoring, and alerting.
 
----
+Phase 1 establishes the reliable core. It is not yet the complete MLOps template;
+see [the extension plan](docs/project-extension-plan.md).
 
-## 📂 Project Structure
+For detailed setup, operation, customization, and troubleshooting instructions,
+use the [project handbook](docs/project-handbook.md).
 
-This project follows a strict separation of concerns.
+## What Phase 1 proves
+
+The included synthetic example verifies this contract:
 
 ```text
+raw mixed-type data
+        ↓
+validated feature and target columns
+        ↓
+stratified train/test split
+        ↓
+preprocessing fitted on training data only
+        ↓
+one fitted sklearn Pipeline (preprocessing + estimator)
+        ↓
+models/model.joblib
+        ↓
+prediction from raw JSON using that exact artifact
+```
+
+The example uses only neutral names:
+
+- `numeric_feature_1`
+- `numeric_feature_2`
+- `category_feature_1`
+- `category_feature_2`
+- `target`
+
+It is a smoke-test fixture, not a recommended real-world feature set or model.
+
+## Quick start
+
+From the repository root, create and activate a virtual environment:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -e .
+```
+
+Generate the deterministic example data:
+
+```powershell
+python -m ml_project_template.example_data
+```
+
+Train and save the full preprocessing-and-estimator pipeline:
+
+```powershell
+python -m ml_project_template.train
+```
+
+Predict from one raw record. The committed request deliberately includes a
+category that was not present during training:
+
+```powershell
+python -m ml_project_template.predict --input-file examples/binary_classification/sample_request.json
+```
+
+For short programmatic calls, `--input-json` also accepts an inline JSON object.
+
+Successful training creates ignored local outputs:
+
+```text
+data/raw/example.csv
+models/model.joblib
+models/metrics.json
+```
+
+## Optional notebook and application dependencies
+
+Install experimentation tools:
+
+```powershell
+python -m pip install -e ".[experiment]"
+```
+
+Install and run the optional Streamlit example:
+
+```powershell
+python -m pip install -e ".[app]"
+streamlit run app/main.py
+```
+
+For compatibility, `python -m pip install -r requirements.txt` installs both
+optional groups. Core workflows should prefer the smaller `pip install -e .`.
+
+## Current structure
+
+```text
+├── app/                              # optional Streamlit client
 ├── data/
-│   ├── raw/                  # Immutable original data (do not edit)
-│   ├── processed/            # Cleaned data used for modeling
-│   └── external/             # Third-party data/references
-│
-├── notebooks/                              # Experimental Laboratory
-│   ├── 01_eda_and_discovery.ipynb          # Discovery & Analysis (Split-First: Train Only)
-│   ├── 02_preprocessing.ipynb              # Data Cleaning & Transformation
-│   ├── 03_model_training.ipynb             # Model Training with MLflow Tracking
-│   └── 04_inference_test.ipynb             # Final Pipeline Validation
-│
-├── src/                      # Production Codebase
-│   ├── config.py             # Global Control Center (Paths, Params)
-│   ├── data_loader.py        # Robust Data Ingestion
-│   ├── preprocessing.py      # Reusable Cleaning Logic
-│   ├── train.py              # Model Training Pipeline
-│   └── inference.py          # Prediction Engine (Singleton)
-│
-├── models/                   # Serialized Models (.pkl, .pth)
-├── app/
-│   └── main.py               # User Interface (Streamlit/FastAPI)
-├── mlflow.db                 # MLflow Experiment Tracking Database
-└── requirements.txt          # Dependencies
+│   ├── raw/                          # generated/local raw data
+│   ├── processed/                    # later pipeline outputs
+│   └── external/                     # third-party reference data
+├── docs/
+│   ├── current-state-assessment.md
+│   └── project-extension-plan.md
+├── examples/
+│   └── binary_classification/
+│       └── sample_request.json
+├── models/                           # generated artifacts and metrics
+├── notebooks/                        # experimental laboratory
+├── src/
+│   └── ml_project_template/
+│       ├── config.py                 # typed settings and paths
+│       ├── data.py                   # loading and minimum validation
+│       ├── example_data.py           # deterministic neutral fixture
+│       ├── pipeline.py               # preprocessing + estimator builder
+│       ├── train.py                  # authoritative training command
+│       └── predict.py                # authoritative inference command
+├── pyproject.toml                    # package and dependency groups
+└── requirements.txt                  # compatibility installation
 ```
 
----
+## Why preprocessing is inside the model artifact
 
-## 🔬 MLflow Experiment Tracking
+Numeric imputation/scaling and categorical imputation/encoding learn information
+from training data. Saving only the estimator would require inference code to
+reconstruct those transformations perfectly. Instead, training fits and saves
+one sklearn `Pipeline`; prediction loads that same object and accepts raw fields.
 
-This template integrates **MLflow** for comprehensive experiment tracking and model management.
+This prevents the earlier failure mode in which training and inference used
+different preprocessing implementations and different model filenames.
 
-### Setup
-```python
-import mlflow
+## Using the template for a real project
 
-# Set tracking URI (SQLite database)
-mlflow.set_tracking_uri("sqlite:///mlflow.db")
+The Phase 1 example supports tabular binary classification only. When creating a
+real project:
 
-# Set experiment name
-mlflow.set_experiment("YourProjectName")
-```
+1. rename the Python package from `ml_project_template` to the project package;
+2. replace the synthetic generator with real ingestion logic;
+3. define explicit feature and target columns in the typed settings;
+4. choose a split strategy matching time, groups, or other prediction constraints;
+5. replace or extend the baseline pipeline through notebook experiments;
+6. promote accepted experiments into shared code and tests;
+7. remove the generic example after the real end-to-end path works.
 
-### What Gets Tracked
-- **Parameters**: Model hyperparameters, data split ratios, preprocessing steps
-- **Metrics**: Accuracy, precision, recall, F1, RMSE, R², etc.
-- **Artifacts**: Model files, plots, confusion matrices
-- **Metadata**: Input shape, feature names, timestamps
+Do not present the included logistic regression or synthetic metrics as evidence
+for a real use case.
 
-### View Experiments
-```bash
-mlflow ui --backend-store-uri sqlite:///mlflow.db
-```
-Access the dashboard at `http://localhost:5000`
+## What is deliberately deferred
 
----
+The following belong to later extension phases:
 
-## 🛡️ Data Leakage Prevention Strategy
-
-This template implements a **split-first approach** to eliminate data leakage risks:
-
-### The Problem
-Traditional workflows often perform EDA and preprocessing on the full dataset before splitting, which can lead to:
-- Target leakage from feature engineering
-- Scaling/imputation contaminated by test data statistics
-- Overly optimistic model performance
-
-### Our Solution: Split First, Always
-1. **Load raw data** → Immediately split into train/test (80/20)
-2. **EDA on train only** → All analysis, visualizations, and statistical summaries use training data exclusively
-3. **Preprocessing fitted on train** → Transformers learn only from training data
-4. **Test set remains untouched** → Locked away until final evaluation
-
-### Implementation
-```python
-# ✅ Correct: Split FIRST
-df = pd.read_csv('data.csv')
-train, test = train_test_split(df, test_size=0.2, random_state=42)
-
-# Now use 'train' for all EDA and preprocessing
-# 'test' is set aside until model evaluation
-```
-
-**Result**: Your model's test performance accurately reflects real-world generalization.
-
----
-
-## 📦 Dependencies
-
-Core libraries used in this template:
-
-```
-pandas
-numpy
-scikit-learn
-mlflow
-joblib
-matplotlib
-seaborn
-streamlit
-```
-
-Install all dependencies:
-```bash
-pip install -r requirements.txt
+- comprehensive unit/integration tests and pull-request CI;
+- richer data contracts and versioning;
+- MLflow lineage, tuning, model selection, and quality gates;
+- reproducible training jobs and immutable packaged artifacts;
+- typed serving API and containers;
+- Prometheus, Grafana, alerts, drift, and operations documentation.

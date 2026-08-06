@@ -1,0 +1,7 @@
+{
+  "numeric_feature_1": 0.25,
+  "numeric_feature_2": -0.5,
+  "category_feature_1": "unseen_category",
+  "category_feature_2": "group_1"
+}
+

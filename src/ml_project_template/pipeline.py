@@ -50,4 +50,3 @@ def build_pipeline(settings: Settings) -> Pipeline:
             ),
         ]
     )
-

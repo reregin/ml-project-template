@@ -583,6 +583,12 @@ training-serving skew.
 
 ### Phase 2 — Tests and quality automation
 
+**Status: completed and locally verified on 2026-08-06.** The quality gate runs
+Ruff formatting/linting, mypy, Bandit, and 33 unit/integration/repository tests
+with 99% branch coverage. GitHub Actions applies the same gate without secrets
+on Python 3.10 and 3.12. The remote workflow will execute after the commit is
+pushed to GitHub.
+
 Tasks:
 
 - unit-test data loading, contract validation, feature construction, metrics, and

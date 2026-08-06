@@ -22,7 +22,6 @@ from ml_project_template.config import Settings, configure_logging, get_settings
 from ml_project_template.data import load_training_data
 from ml_project_template.pipeline import build_pipeline
 
-
 LOGGER = logging.getLogger(__name__)
 
 

@@ -8,7 +8,7 @@ explains how the current system works, how to operate it, what to replace for a
 real project, and how to diagnose common failures.
 
 The handbook will grow with the implementation phases. It currently documents
-the completed **Phase 1 core**:
+the completed **Phase 1 core** and **Phase 2 quality layer**:
 
 - installable Python package;
 - deterministic, domain-neutral example data;
@@ -17,10 +17,14 @@ the completed **Phase 1 core**:
 - one fitted preprocessing-and-estimator pipeline;
 - one authoritative model artifact;
 - command-line raw inference;
-- optional Streamlit and notebook interfaces.
+- optional Streamlit and notebook interfaces;
+- unit, integration, and repository-contract tests;
+- branch coverage, formatting, linting, typing, and security scanning;
+- a one-command local quality gate;
+- least-privilege GitHub Actions CI on Python 3.10 and 3.12.
 
-Later editions will add automated testing, CI, experiment management, data
-versioning, reproducible packaging, serving, monitoring, and release workflows.
+Later editions will add experiment management, data versioning, reproducible
+packaging, serving, monitoring, and release workflows.
 
 ---
 
@@ -193,7 +197,7 @@ Streamlit application:
 python -m pip install -e ".[app]"
 ```
 
-Development tools reserved for the testing phase:
+Phase 2 development and quality tools:
 
 ```powershell
 python -m pip install -e ".[dev]"
@@ -904,12 +908,8 @@ git status --short --ignored
 
 ## 17. Current limitations and next expansion
 
-Phase 1 intentionally does not provide:
+Phases 1 and 2 intentionally do not yet provide:
 
-- comprehensive automated tests;
-- test coverage reporting;
-- lint/type/security automation;
-- pull-request CI;
 - full schema and data-quality validation;
 - model comparison or tuning;
 - authoritative MLflow tracking and lineage;
@@ -919,22 +919,307 @@ Phase 1 intentionally does not provide:
 - prediction API or container;
 - monitoring, dashboards, alerts, or drift detection.
 
-Phase 2 should add automated tests and CI around the exact manual contract
-documented here. When that phase is completed, this handbook should gain:
-
-- test command reference;
-- test-fixture guidance;
-- CI workflow explanation;
-- failure interpretation;
-- coverage and quality-tool commands;
-- instructions for adding a tested feature or model implementation.
+Phase 3 should add explicit MLflow experiment evidence, shared baseline/tuning
+entry points, correct validation and model-selection behavior, lineage,
+signatures, diagnostic artifacts, and quality gates.
 
 ---
 
-## 18. Related documentation
+## 18. Phase 2 testing and quality reference
+
+### 18.1 Install the quality tools
+
+```powershell
+python -m pip install -e ".[dev]"
+```
+
+This group installs:
+
+| Tool | Responsibility |
+|---|---|
+| Ruff formatter | enforces one Python formatting style |
+| Ruff linter | detects import, correctness, modernization, bug-risk, and simplification issues |
+| mypy | checks typed shared-source interfaces |
+| Bandit | scans source for common Python security mistakes |
+| pytest | executes behavioral contracts |
+| pytest-cov/coverage | reports statement and branch coverage |
+
+These tools are development dependencies. Core users do not install them through
+`pip install -e .`.
+
+### 18.2 Run the complete local gate
+
+On Windows:
+
+```powershell
+PowerShell -NoProfile -ExecutionPolicy Bypass -File scripts/check.ps1
+```
+
+`-ExecutionPolicy Bypass` applies only to this child PowerShell process. It is
+included because some Windows installations block local `.ps1` files by default.
+It does not permanently change the user's execution policy.
+
+If the active environment already permits scripts:
+
+```powershell
+.\scripts\check.ps1
+```
+
+The script stops at the first failed stage and runs:
+
+```powershell
+python -m ruff format --check .
+python -m ruff check .
+python -m mypy src
+python -m bandit -q -r src app
+python -m pytest
+```
+
+### 18.3 Run individual checks
+
+Check formatting without changing files:
+
+```powershell
+python -m ruff format --check .
+```
+
+Format Python files:
+
+```powershell
+python -m ruff format .
+```
+
+Run the linter:
+
+```powershell
+python -m ruff check .
+```
+
+Apply only Ruff's safe automatic fixes, then inspect the diff:
+
+```powershell
+python -m ruff check --fix .
+git diff
+```
+
+Run source type checking:
+
+```powershell
+python -m mypy src
+```
+
+Run the security scan:
+
+```powershell
+python -m bandit -q -r src app
+```
+
+Run all tests and coverage:
+
+```powershell
+python -m pytest
+```
+
+Run one test file:
+
+```powershell
+python -m pytest tests/unit/test_data.py
+```
+
+Run one test by name:
+
+```powershell
+python -m pytest tests/integration/test_training_inference.py::test_training_artifact_is_compatible_with_raw_inference
+```
+
+Show captured logs/output while testing:
+
+```powershell
+python -m pytest -s
+```
+
+### 18.4 Test organization
+
+```text
+tests/
+├── conftest.py
+├── unit/
+│   ├── test_config.py
+│   ├── test_data.py
+│   ├── test_example_data.py
+│   ├── test_pipeline.py
+│   └── test_predict.py
+├── integration/
+│   ├── test_cli.py
+│   └── test_training_inference.py
+└── repository/
+    └── test_repository_contract.py
+```
+
+The categories have different purposes:
+
+- **Unit tests** isolate configuration, data-contract, generator, pipeline, and
+  prediction behavior.
+- **Integration tests** generate data, train, save, load, and predict through the
+  real public interfaces and CLI entry points.
+- **Repository-contract tests** verify template-level promises such as valid
+  notebook JSON, exact sample-request fields, and absence of runtime path hacks.
+
+All test data is generated under pytest temporary directories. Tests do not need
+`data/raw/example.csv`, `models/model.joblib`, private data, network access, or
+repository secrets.
+
+### 18.5 Behaviors protected by the suite
+
+The current 33 tests protect:
+
+- authoritative path resolution;
+- environment-based project-root configuration;
+- invalid split ratios, empty target names, empty feature sets, and duplicate
+  features;
+- deterministic synthetic generation;
+- the exact neutral example schema and balanced target;
+- empty datasets, missing columns, missing targets, invalid target classes, and
+  missing files;
+- raw fitting with missing values;
+- ordered configured features;
+- unseen categorical values;
+- missing model artifacts and prediction fields;
+- exact prediction response keys;
+- legitimate probability `0.0` values;
+- estimators without probability support;
+- file-based and inline-JSON CLI execution;
+- one complete generate → train → save → load → raw predict lifecycle;
+- valid notebook JSON and absence of legacy `sys.path` mutation.
+
+### 18.6 Coverage policy
+
+Pytest is configured to measure both statements and branches in
+`ml_project_template`. The gate requires at least 90% total coverage. The current
+suite achieves approximately 99% branch coverage.
+
+Coverage is evidence that relevant paths were executed, not proof that assertions
+are meaningful. A new test should protect a behavior or failure mode; do not add
+empty tests merely to increase the number.
+
+Coverage output identifies missed lines and partial branches. HTML output can be
+generated when deeper inspection is helpful:
+
+```powershell
+python -m pytest --cov-report=html
+```
+
+Then open `htmlcov/index.html` locally. `htmlcov/` is ignored.
+
+### 18.7 Add a new behavior safely
+
+Use this sequence:
+
+1. decide whether the change belongs in shared code or remains a notebook
+   experiment;
+2. describe its input, output, and expected failures;
+3. add or update a focused unit test;
+4. add an integration test if the artifact or lifecycle contract changes;
+5. implement the behavior;
+6. run the individual test while iterating;
+7. run the complete quality gate;
+8. inspect the diff before committing.
+
+Bug fixes should normally begin with a failing regression test that demonstrates
+the bug. The test should pass only after the fix is implemented.
+
+### 18.8 Interpret common quality failures
+
+`ruff format --check` failure:
+
+- one or more Python files differ from the configured formatter;
+- run `python -m ruff format .`, inspect the diff, and rerun the gate.
+
+`ruff check` failure:
+
+- read the rule code and explanation;
+- use `--fix` only when the proposed transformation preserves intent;
+- avoid blanket rule suppression without documenting why.
+
+`mypy` failure:
+
+- an annotated shared-code contract is inconsistent;
+- prefer correcting the type or control flow over adding `Any` or ignores;
+- third-party missing stubs are currently ignored, but project code is checked.
+
+`bandit` failure:
+
+- inspect the confidence, severity, and code path;
+- repair real risks;
+- suppress a false positive only beside the relevant line with a concise reason.
+
+`pytest` assertion failure:
+
+- the behavior differs from its executable contract;
+- determine whether the implementation regressed or the intended contract
+  deliberately changed;
+- update a test only when the desired behavior truly changed.
+
+Coverage-threshold failure:
+
+- all tests may pass while important new branches remain unexercised;
+- add behavior-focused tests for those paths rather than lowering the threshold
+  automatically.
+
+### 18.9 GitHub Actions CI
+
+`.github/workflows/ci.yml` runs for:
+
+- pushes;
+- pull requests;
+- manual workflow dispatch.
+
+It tests Python 3.10 and 3.12 on Ubuntu and performs:
+
+1. clean checkout;
+2. Python setup with pip caching;
+3. editable installation with the `dev` group;
+4. dependency consistency check;
+5. format check;
+6. lint;
+7. type check;
+8. Bandit scan;
+9. pytest with branch coverage.
+
+Security and resource decisions:
+
+- workflow permissions are limited to `contents: read`;
+- no secrets are required;
+- duplicate runs on the same ref are cancelled;
+- each matrix job has a 15-minute timeout;
+- tests generate their own data and artifacts in temporary directories;
+- pull requests do not publish packages, models, or containers.
+
+Local success proves the commands work on this Windows/Python 3.10 environment.
+The remote GitHub status is authoritative for Ubuntu and Python 3.12 after the
+commit is pushed.
+
+### 18.10 Phase 2 completion check
+
+The expected local result is:
+
+```text
+Ruff format: pass
+Ruff lint: pass
+mypy: pass
+Bandit: pass
+pytest: 33 passed
+branch coverage: approximately 99%
+```
+
+If test count changes later, the behavioral coverage and passing quality gate
+matter more than preserving the number `33`.
+
+---
+
+## 19. Related documentation
 
 - `README.md` — orientation and quick start
 - `docs/current-state-assessment.md` — what is good, resolved, partial, or missing
 - `docs/project-extension-plan.md` — phased architecture and implementation plan
 - `docs/project-handbook.md` — detailed operating and customization reference
-

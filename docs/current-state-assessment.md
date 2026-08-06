@@ -25,16 +25,17 @@ data directories, an installable package, and one raw-input-to-prediction
 pipeline artifact.
 
 It is not yet a complete reusable ML template. Phase 1 repaired package,
-dependency, training, artifact, and inference consistency, but comprehensive
-tests, CI, richer experiment tracking, data lineage, serving, deployment, and
-operations remain later phases.
+dependency, training, artifact, and inference consistency. Phase 2 now enforces
+those contracts with unit/integration tests, coverage, formatting, linting, type
+checking, security scanning, and CI. Richer experiment tracking, data lineage,
+serving, deployment, and operations remain later phases.
 
 Current maturity by track:
 
 | Track | Current status | Explanation |
 |---|---|---|
 | DS experimentation | Good foundation | Ordered notebooks, data layout, EDA prompts, split-first intent, preprocessing and training scaffolding exist. |
-| ML engineering | Working Phase 1 baseline | Clean installation, generic data generation, leakage-safe training, one complete pipeline artifact, raw inference, and typed settings work. Tests, CI, richer contracts, and MLflow lineage remain. |
+| ML engineering | Tested Phase 2 baseline | Phase 1's complete pipeline is protected by 33 tests, 99% branch coverage, Ruff, mypy, Bandit, a local quality command, and least-privilege CI on Python 3.10/3.12. Richer contracts and MLflow lineage remain. |
 | MLOps | Mostly missing | There is no retraining CI, deployable model contract, container, service API, monitoring stack, alerting, or release workflow. |
 
 The right strategy is to preserve this now-working baseline and add tests,
@@ -583,9 +584,9 @@ artifact contract.
 | **Partial:** validated typed configuration | Prevents incompatible or hidden settings | Phase 1; expanded Phase 3 |
 | **Completed:** minimal/optional dependency groups | Keeps DS-only use lightweight and portable | Phase 1 |
 | **Partial:** minimum data/schema contract | Detects bad inputs before training or serving | Phase 1; expanded Phase 4 |
-| Automated unit and integration tests | Turns assumptions into executable guarantees | Phase 2 |
-| Pull-request CI | Proves clean-checkout behavior continuously | Phase 2 |
-| Reproducible notebook/module smoke test | Shows that the documented learning workflow runs | Phase 2 |
+| **Completed:** automated unit and integration tests | Turns assumptions into executable guarantees | Phase 2 |
+| **Completed:** pull-request CI | Proves clean-checkout behavior continuously | Phase 2 |
+| **Completed:** repository/notebook contract checks | Shows that the documented learning surface remains structurally valid | Phase 2 |
 | Model-selection validation strategy | Prevents tuning on the final test set | Phase 3 |
 | MLflow signature and input example | Defines deployable input/output behavior | Phase 3 |
 | Code/data/config lineage | Makes runs reproducible and auditable | Phases 3 and 4 |
@@ -798,7 +799,7 @@ Some ideas are easy to confuse; these distinctions should guide future changes:
 
 ## 10. What can reasonably be used today
 
-After Phase 1, the repository can be used safely as:
+After Phase 2, the repository can be used safely as:
 
 - a reference layout for a small tabular DS project;
 - a checklist for leakage-aware EDA and preprocessing;
@@ -806,11 +807,11 @@ After Phase 1, the repository can be used safely as:
 - a clean-installable Python package;
 - an executable domain-neutral binary-classification baseline;
 - a working example of one preprocessing-and-estimator artifact;
-- a raw JSON inference smoke path and optional Streamlit client.
+- a raw JSON inference smoke path and optional Streamlit client;
+- a locally enforced, high-coverage baseline with pull-request CI.
 
 It should not yet be trusted unchanged as:
 
-- a comprehensively tested training pipeline;
 - a general regression, multiclass, time-series, NLP, or vision template;
 - a complete schema-validation framework;
 - a fully tracked and governed experiment system;
@@ -835,8 +836,6 @@ Recommended reading order for a future session:
 4. update this assessment as milestones are completed so it does not become a
    stale description of the repository.
 
-Phase 1 has now proven one clean path from raw input, through a fitted
-preprocessing-and-estimator pipeline, to a correct prediction using the exact
-artifact produced by training. The next goal is making that contract executable
-and continuously enforced through Phase 2 tests and CI—not jumping directly to
-Docker or Grafana.
+Phase 1 proved one clean raw-input-to-prediction path. Phase 2 now continuously
+enforces it through tests and CI. The next goal is Phase 3 experiment evidence,
+lineage, comparison, and quality gates—not jumping directly to Docker or Grafana.

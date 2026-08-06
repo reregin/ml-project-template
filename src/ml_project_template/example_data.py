@@ -11,7 +11,6 @@ import pandas as pd
 
 from ml_project_template.config import configure_logging, get_settings
 
-
 LOGGER = logging.getLogger(__name__)
 
 
@@ -90,4 +89,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

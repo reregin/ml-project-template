@@ -5,7 +5,6 @@ import streamlit as st
 from ml_project_template.config import get_settings
 from ml_project_template.predict import predict_record
 
-
 settings = get_settings()
 
 st.set_page_config(page_title="ML Project Template")

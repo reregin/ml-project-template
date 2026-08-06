@@ -13,7 +13,6 @@ import pandas as pd
 
 from ml_project_template.config import configure_logging, get_settings
 
-
 LOGGER = logging.getLogger(__name__)
 
 
@@ -22,9 +21,7 @@ def load_model(artifact_path: Path) -> Any:
 
     resolved_path = artifact_path.expanduser().resolve()
     if not resolved_path.is_file():
-        raise FileNotFoundError(
-            f"Model artifact not found at {resolved_path}. Run training first."
-        )
+        raise FileNotFoundError(f"Model artifact not found at {resolved_path}. Run training first.")
     model = joblib.load(resolved_path)
     LOGGER.info("event=model_loaded artifact=%s", resolved_path)
     return model

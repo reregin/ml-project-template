@@ -9,7 +9,6 @@ import pandas as pd
 
 from ml_project_template.config import Settings
 
-
 LOGGER = logging.getLogger(__name__)
 
 
@@ -48,4 +47,3 @@ def load_training_data(path: Path, settings: Settings) -> pd.DataFrame:
     validate_training_data(data, settings)
     LOGGER.info("event=data_loaded path=%s rows=%d columns=%d", resolved_path, *data.shape)
     return data
-

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import logging
 import os
+from dataclasses import dataclass, field
 from pathlib import Path
 
 
@@ -19,7 +19,7 @@ def _default_project_root() -> Path:
 class Settings:
     """Configuration for the generic binary-classification baseline."""
 
-    project_root: Path = _default_project_root()
+    project_root: Path = field(default_factory=_default_project_root)
     target_column: str = "target"
     numeric_features: tuple[str, ...] = (
         "numeric_feature_1",
@@ -73,4 +73,3 @@ def configure_logging(level: int = logging.INFO) -> None:
         level=level,
         format="%(asctime)s level=%(levelname)s logger=%(name)s message=%(message)s",
     )
-

@@ -1,0 +1,36 @@
+"""Fast checks for repository-level template promises."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+
+def test_notebooks_are_valid_json() -> None:
+    notebooks = sorted((PROJECT_ROOT / "notebooks").glob("*.ipynb"))
+    assert notebooks, "The learning track must include at least one notebook."
+
+    for notebook_path in notebooks:
+        notebook = json.loads(notebook_path.read_text(encoding="utf-8"))
+        assert notebook["nbformat"] == 4
+        assert isinstance(notebook["cells"], list)
+
+
+def test_authoritative_code_has_no_runtime_path_mutation() -> None:
+    source_files = (PROJECT_ROOT / "src" / "ml_project_template").glob("*.py")
+    combined_source = "\n".join(path.read_text(encoding="utf-8") for path in source_files)
+
+    assert "sys.path" not in combined_source
+    assert "from src" not in combined_source
+    assert "import src" not in combined_source
+
+
+def test_sample_request_uses_exact_configured_features() -> None:
+    from ml_project_template.config import get_settings
+
+    request_path = PROJECT_ROOT / "examples" / "binary_classification" / "sample_request.json"
+    request = json.loads(request_path.read_text(encoding="utf-8"))
+
+    assert list(request) == list(get_settings().feature_columns)

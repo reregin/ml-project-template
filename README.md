@@ -9,10 +9,12 @@ The repository is intentionally layered:
 - **DS track:** notebooks, exploration, preprocessing, training, and evaluation;
 - **ML engineering track:** installable package, reproducible commands, and one
   authoritative training/inference artifact;
-- **MLOps track:** planned CI, packaging, serving, monitoring, and alerting.
+- **MLOps track:** CI-backed evolution toward packaging, serving, monitoring, and
+  alerting.
 
-Phase 1 establishes the reliable core. It is not yet the complete MLOps template;
-see [the extension plan](docs/project-extension-plan.md).
+Phase 1 established the reliable core, and Phase 2 protects it with automated
+quality checks. This is not yet the complete MLOps template; see
+[the extension plan](docs/project-extension-plan.md).
 
 For detailed setup, operation, customization, and troubleshooting instructions,
 use the [project handbook](docs/project-handbook.md).
@@ -105,6 +107,24 @@ streamlit run app/main.py
 For compatibility, `python -m pip install -r requirements.txt` installs both
 optional groups. Core workflows should prefer the smaller `pip install -e .`.
 
+## Quality checks
+
+Install the development group:
+
+```powershell
+python -m pip install -e ".[dev]"
+```
+
+Run the complete local quality gate on Windows:
+
+```powershell
+PowerShell -NoProfile -ExecutionPolicy Bypass -File scripts/check.ps1
+```
+
+The gate checks formatting, lint, types, common security issues, 33 behavioral
+tests, and a 90% minimum branch-coverage threshold. GitHub Actions runs the same
+checks on Python 3.10 and 3.12 for pushes and pull requests.
+
 ## Current structure
 
 ```text
@@ -163,7 +183,6 @@ for a real use case.
 
 The following belong to later extension phases:
 
-- comprehensive unit/integration tests and pull-request CI;
 - richer data contracts and versioning;
 - MLflow lineage, tuning, model selection, and quality gates;
 - reproducible training jobs and immutable packaged artifacts;

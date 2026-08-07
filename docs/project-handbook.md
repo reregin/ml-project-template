@@ -8,7 +8,8 @@ explains how the current system works, how to operate it, what to replace for a
 real project, and how to diagnose common failures.
 
 The handbook will grow with the implementation phases. It currently documents
-the completed **Phase 1 core** and **Phase 2 quality layer**:
+the completed **Phase 1 core**, **Phase 2 quality layer**, and **Phase 3
+experiment-management layer**:
 
 - installable Python package;
 - deterministic, domain-neutral example data;
@@ -22,8 +23,11 @@ the completed **Phase 1 core** and **Phase 2 quality layer**:
 - branch coverage, formatting, linting, typing, and security scanning;
 - a one-command local quality gate;
 - least-privilege GitHub Actions CI on Python 3.10 and 3.12.
+- MLflow baseline/tuned comparison, lineage, diagnostics, and signatures;
+- development-only model selection and an untouched final test set;
+- a packaging quality gate and generated model card.
 
-Later editions will add experiment management, data versioning, reproducible
+Later editions will add data versioning, reproducible training/release
 packaging, serving, monitoring, and release workflows.
 
 ---
@@ -908,20 +912,16 @@ git status --short --ignored
 
 ## 17. Current limitations and next expansion
 
-Phases 1 and 2 intentionally do not yet provide:
+Phases 1 through 3 intentionally do not yet provide:
 
 - full schema and data-quality validation;
-- model comparison or tuning;
-- authoritative MLflow tracking and lineage;
-- model-quality gates;
 - data versioning;
 - packaged serving artifacts;
 - prediction API or container;
 - monitoring, dashboards, alerts, or drift detection.
 
-Phase 3 should add explicit MLflow experiment evidence, shared baseline/tuning
-entry points, correct validation and model-selection behavior, lineage,
-signatures, diagnostic artifacts, and quality gates.
+Phase 4 should add automated ingestion/preprocessing, stronger data contracts,
+output validation, and durable data provenance/versioning decisions.
 
 ---
 
@@ -1071,7 +1071,7 @@ repository secrets.
 
 ### 18.5 Behaviors protected by the suite
 
-The current 33 tests protect:
+The current 49 tests protect:
 
 - authoritative path resolution;
 - environment-based project-root configuration;
@@ -1091,12 +1091,14 @@ The current 33 tests protect:
 - file-based and inline-JSON CLI execution;
 - one complete generate → train → save → load → raw predict lifecycle;
 - valid notebook JSON and absence of legacy `sys.path` mutation.
+- MLflow run comparison, selection metadata, model signatures, lineage
+  artifacts, model-card generation, and failed-gate non-packaging.
 
 ### 18.6 Coverage policy
 
 Pytest is configured to measure both statements and branches in
 `ml_project_template`. The gate requires at least 90% total coverage. The current
-suite achieves approximately 99% branch coverage.
+suite achieves approximately 96% branch coverage.
 
 Coverage is evidence that relevant paths were executed, not proof that assertions
 are meaningful. A new test should protect a behavior or failure mode; do not add
@@ -1178,7 +1180,7 @@ It tests Python 3.10 and 3.12 on Ubuntu and performs:
 
 1. clean checkout;
 2. Python setup with pip caching;
-3. editable installation with the `dev` group;
+3. editable installation with the `dev,experiment` groups;
 4. dependency consistency check;
 5. format check;
 6. lint;
@@ -1208,8 +1210,8 @@ Ruff format: pass
 Ruff lint: pass
 mypy: pass
 Bandit: pass
-pytest: 33 passed
-branch coverage: approximately 99%
+pytest: 49 passed
+branch coverage: approximately 96%
 ```
 
 If test count changes later, the behavioral coverage and passing quality gate
@@ -1217,7 +1219,187 @@ matter more than preserving the number `33`.
 
 ---
 
-## 19. Related documentation
+## 19. Phase 3 experiment management and evaluation
+
+### 19.1 What this layer is for
+
+The Phase 1 `train` command remains the smallest raw-data-to-model example. The
+Phase 3 `experiment` command answers a larger question: **which candidate should
+be packaged, and what evidence supports that decision?**
+
+Its data flow is deliberately asymmetric:
+
+```text
+raw data
+  -> reserve untouched test rows
+  -> compare baseline and tuned candidates by development-only CV
+  -> select the highest mean development CV F1
+  -> refit that candidate on all development rows
+  -> evaluate that winner once on the untouched test rows
+  -> package only when test F1 passes the configured gate
+```
+
+The test set is not another tuning fold. Looking at it while choosing candidates
+would make the reported final result part of the optimization process.
+
+### 19.2 Install and run
+
+Install the experiment layer and generate the neutral fixture:
+
+```powershell
+python -m pip install -e ".[experiment]"
+python -m ml_project_template.example_data
+python -m ml_project_template.experiment
+```
+
+The installed command is equivalent:
+
+```powershell
+ml-template-experiment
+```
+
+Useful overrides:
+
+```powershell
+python -m ml_project_template.experiment `
+  --data data/raw/example.csv `
+  --artifact models/model.joblib `
+  --metrics models/metrics.json `
+  --model-card models/model-card.md `
+  --experiment-name my-local-comparison `
+  --min-test-f1 0.75
+```
+
+The default gate is test F1 >= `0.70`. A threshold must be between zero and one.
+For a real project, choose it from domain costs and baseline evidence rather
+than retaining the template number blindly.
+
+### 19.3 What gets compared
+
+Both candidates use the authoritative pipeline builder, so their preprocessing
+contract is identical:
+
+- `baseline`: default logistic-regression settings;
+- `tuned`: `GridSearchCV` over `C` values `0.1`, `1.0`, and `10.0`, with and
+  without balanced class weights;
+- both use stratified shuffled CV with the configured seed;
+- selection currently supports mean CV F1 only.
+
+This is a small teaching search, not a claim that logistic regression or this
+grid is suitable for every dataset. Add a candidate only after defining its
+valid parameter space and evaluation policy.
+
+### 19.4 MLflow runs and evidence
+
+The default tracking URI is the ignored local SQLite database `mlflow.db`.
+Each experiment execution creates two MLflow runs. Both record candidate
+parameters, cross-validation metrics, selection tags, and reproducibility
+evidence. The tuned run also stores its complete CV results.
+
+The selected run additionally records:
+
+- untouched-test accuracy, precision, recall, F1, and ROC AUC;
+- classification report and confusion matrix;
+- candidate scores and the explicit statement that test data was not used for
+  selection;
+- quality-gate result;
+- the complete fitted sklearn pipeline;
+- inferred model signature and a five-row input example;
+- generated model card.
+
+Reproducibility evidence includes the exact input file's SHA-256, current Git
+revision when available, resolved settings, and a dataset profile. A hash proves
+identity only if the corresponding data bytes remain available; Phase 4 will
+define durable data storage/versioning.
+
+### 19.5 Inspect runs locally
+
+From this repository's current path on Windows:
+
+```powershell
+mlflow ui --backend-store-uri sqlite:///D:/projects/ml-project-template/mlflow.db
+```
+
+Open `http://127.0.0.1:5000`, choose the `ml-project-template` experiment, and
+compare the baseline and tuned runs. If the project is moved, update the
+absolute path in the SQLite URI.
+
+SQLite is the tracking database; it is not by itself a model registry,
+promotion policy, or immutable release system.
+
+### 19.6 Use a remote tracking server
+
+Set `MLFLOW_TRACKING_URI` before running the same command:
+
+```powershell
+$env:MLFLOW_TRACKING_URI = "https://mlflow.example.internal"
+python -m ml_project_template.experiment
+```
+
+Remove the shell-local override afterward:
+
+```powershell
+Remove-Item Env:MLFLOW_TRACKING_URI
+```
+
+Authentication and TLS depend on the chosen server. Keep tokens and credentials
+in environment variables or a secret manager, never in repository files.
+
+### 19.7 Packaging outcomes
+
+On success, local ignored outputs are:
+
+```text
+mlflow.db
+models/model.joblib
+models/metrics.json
+models/model-card.md
+```
+
+`metrics.json` connects the candidate run IDs, selection scores, final metrics,
+data/code identity, and MLflow model URI. `model.joblib` remains compatible with
+the Phase 1 raw-record prediction command.
+
+When the gate fails, the selected run still retains the failure metrics and
+diagnostics so the result can be investigated, but the command raises
+`QualityGateError` before writing the local model, metrics file, model card, or
+MLflow model. A failed experiment is evidence, not a deployable artifact.
+
+### 19.8 Model-card workflow
+
+`docs/model-card-template.md` is the human checklist for real projects. A
+successful experiment generates `models/model-card.md` with the facts available
+automatically. Replace or expand its generic intended-use and limitation text
+when adapting the template. Do not infer fairness, calibration, robustness, or
+business value from the synthetic fixture's metrics.
+
+### 19.9 Verify Phase 3
+
+Run the full automated gate:
+
+```powershell
+PowerShell -NoProfile -ExecutionPolicy Bypass -File scripts/check.ps1
+```
+
+The Phase 3 integration tests verify that:
+
+- exactly two distinct runs are created;
+- selection is based on development CV evidence;
+- the selected run carries final-test metrics and packaging metadata;
+- the logged model has a signature and accepts raw mixed-type input;
+- a deliberately failed gate produces no deployable artifacts.
+
+For a manual smoke test, run the experiment, inspect both runs in the UI, then
+use the packaged local artifact:
+
+```powershell
+python -m ml_project_template.predict `
+  --input-file examples/binary_classification/sample_request.json
+```
+
+---
+
+## 20. Related documentation
 
 - `README.md` — orientation and quick start
 - `docs/current-state-assessment.md` — what is good, resolved, partial, or missing

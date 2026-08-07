@@ -18,8 +18,8 @@ production-ready system.
 
 ## 2. Honest summary
 
-The current repository is a **useful tabular data-science starter with a working
-Phase 1 ML engineering core**. Its strongest ideas are separation of
+The current repository is a **useful tabular data-science starter with a tested
+Phase 3 experiment-management core**. Its strongest ideas are separation of
 experimentation from reusable code, a split-first leakage policy, structured
 data directories, an installable package, and one raw-input-to-prediction
 pipeline artifact.
@@ -27,16 +27,18 @@ pipeline artifact.
 It is not yet a complete reusable ML template. Phase 1 repaired package,
 dependency, training, artifact, and inference consistency. Phase 2 now enforces
 those contracts with unit/integration tests, coverage, formatting, linting, type
-checking, security scanning, and CI. Richer experiment tracking, data lineage,
-serving, deployment, and operations remain later phases.
+checking, security scanning, and CI. Phase 3 now adds MLflow comparison,
+development-only selection, final-test isolation, run lineage, signatures,
+diagnostics, model cards, and a packaging quality gate. Richer data contracts,
+data automation, serving, deployment, and operations remain later phases.
 
 Current maturity by track:
 
 | Track | Current status | Explanation |
 |---|---|---|
 | DS experimentation | Good foundation | Ordered notebooks, data layout, EDA prompts, split-first intent, preprocessing and training scaffolding exist. |
-| ML engineering | Tested Phase 2 baseline | Phase 1's complete pipeline is protected by 33 tests, 99% branch coverage, Ruff, mypy, Bandit, a local quality command, and least-privilege CI on Python 3.10/3.12. Richer contracts and MLflow lineage remain. |
-| MLOps | Mostly missing | There is no retraining CI, deployable model contract, container, service API, monitoring stack, alerting, or release workflow. |
+| ML engineering | Tracked Phase 3 baseline | The complete pipeline is protected by 49 tests and 96% branch coverage; baseline/tuned runs now carry comparable metrics, lineage, diagnostics, signatures, input examples, and model-card evidence. |
+| MLOps | Early foundation | Experiment tracking and a packaging gate exist, but there is no retraining CI, immutable release artifact, container, service API, monitoring stack, alerting, or release workflow. |
 
 The right strategy is to preserve this now-working baseline and add tests,
 experimentation, automation, and optional MLOps layers in order.
@@ -374,25 +376,25 @@ What remains:
 - add probability calibration and threshold selection when relevant;
 - add quality gates and model-card evidence.
 
-These are addressed in Phase 3.
+These core comparison and gate concerns are addressed in Phase 3. Calibration,
+threshold policy, and task-specific business metrics remain project decisions.
 
 ### 4.10 MLflow tracking
 
-**Status: good tool choice and partial implementation.**
+**Status: Phase 3 best-practice local baseline.**
 
 The training code records parameters, metrics, figures, feature importance, and
 a model in MLflow. Experiment tracking is a best practice when it records enough
 context to reproduce and compare runs.
 
-What remains:
+The explicit experiment command now logs comparable baseline and tuned runs,
+development CV metrics, search results, a data hash, Git revision, resolved
+configuration, dataset profile, selection evidence, final diagnostics, and the
+complete selected pipeline. The deployable MLflow model has a signature and
+input example. SQLite provides local run tracking, not model promotion.
 
-- consistently log model signatures and input examples;
-- record code revision, data identity, and resolved configuration;
-- avoid treating a local SQLite database as model versioning by itself;
-- define model selection and promotion;
-- ensure MLflow logs the end-to-end preprocessing-and-model artifact.
-
-These are addressed in Phases 3 and 5.
+Phase 5 still needs a reproducible training job, immutable artifact identity,
+retraining CI, and an explicit promotion/release policy.
 
 ### 4.11 A separate application boundary
 
@@ -438,12 +440,13 @@ classification. This is a stable control, not a claim that it is the best model.
 Additional estimators belong in notebook experiments first and should enter
 shared code only with task-specific evaluation and tests.
 
-### 5.3 Experiment tracking is deferred rather than silently optional
+### 5.3 Experiment tracking is an explicit optional layer
 
-MLflow is available through the `experiment` dependency group, but the Phase 1
-authoritative command does not silently enable or disable tracking based on
-imports. Phase 3 will add explicit tracking configuration, lineage, signatures,
-comparison, and quality gates.
+MLflow remains in the `experiment` dependency group, so core training and raw
+inference stay lightweight. Projects that install the layer call the explicit
+experiment command and receive deterministic tracking, selection, evidence, and
+gate behavior; nothing changes silently based on whether MLflow imports happen
+to be installed.
 
 ### 5.4 Saving transformed train/test CSV files in experimental notebooks
 
@@ -587,11 +590,11 @@ artifact contract.
 | **Completed:** automated unit and integration tests | Turns assumptions into executable guarantees | Phase 2 |
 | **Completed:** pull-request CI | Proves clean-checkout behavior continuously | Phase 2 |
 | **Completed:** repository/notebook contract checks | Shows that the documented learning surface remains structurally valid | Phase 2 |
-| Model-selection validation strategy | Prevents tuning on the final test set | Phase 3 |
-| MLflow signature and input example | Defines deployable input/output behavior | Phase 3 |
-| Code/data/config lineage | Makes runs reproducible and auditable | Phases 3 and 4 |
-| Quality gates | Stops weak/broken models from being packaged | Phases 3 and 5 |
-| Model card | Records intended use, limitations, and evidence | Phase 3 |
+| **Completed:** model-selection validation strategy | Prevents tuning on the final test set | Phase 3 |
+| **Completed:** MLflow signature and input example | Defines deployable input/output behavior | Phase 3 |
+| **Partial:** code/data/config lineage | Records Git, data SHA, settings, and profiles; immutable data storage remains | Phases 3 and 4 |
+| **Partial:** quality gates | Stops weak models from local/MLflow packaging; release gates remain | Phases 3 and 5 |
+| **Completed:** model card | Records intended use, limitations, and evidence | Phase 3 |
 | Automated data pipeline | Converts stable notebook logic into repeatable execution | Phase 4 |
 | Data version/provenance strategy | Connects artifacts to immutable training inputs | Phase 4 |
 | Parameterized reproducible training job | Makes local and CI execution identical | Phase 5 |
@@ -799,7 +802,7 @@ Some ideas are easy to confuse; these distinctions should guide future changes:
 
 ## 10. What can reasonably be used today
 
-After Phase 2, the repository can be used safely as:
+After Phase 3, the repository can be used safely as:
 
 - a reference layout for a small tabular DS project;
 - a checklist for leakage-aware EDA and preprocessing;
@@ -809,12 +812,16 @@ After Phase 2, the repository can be used safely as:
 - a working example of one preprocessing-and-estimator artifact;
 - a raw JSON inference smoke path and optional Streamlit client;
 - a locally enforced, high-coverage baseline with pull-request CI.
+- a local MLflow experiment system for comparing the included baseline and
+  tuning strategy without selecting on the test set;
+- a signature-backed, quality-gated model packaging example with reproducibility
+  artifacts and a generated model card.
 
 It should not yet be trusted unchanged as:
 
 - a general regression, multiclass, time-series, NLP, or vision template;
 - a complete schema-validation framework;
-- a fully tracked and governed experiment system;
+- a centrally governed experiment registry or promotion system;
 - a production deployment template;
 - an automated retraining system;
 - a monitored or self-operating ML service.
@@ -832,10 +839,11 @@ Recommended reading order for a future session:
 1. read this document to understand what exists and why;
 2. read Sections 1–6 of `project-extension-plan.md` for target principles and
    contracts;
-3. continue sequentially with Phase 2 after reviewing the Phase 1 baseline;
+3. continue sequentially with Phase 4 after reviewing the Phase 3 baseline;
 4. update this assessment as milestones are completed so it does not become a
    stale description of the repository.
 
-Phase 1 proved one clean raw-input-to-prediction path. Phase 2 now continuously
-enforces it through tests and CI. The next goal is Phase 3 experiment evidence,
-lineage, comparison, and quality gates—not jumping directly to Docker or Grafana.
+Phase 1 proved one clean raw-input-to-prediction path, Phase 2 continuously
+enforces it through tests and CI, and Phase 3 makes model comparison an explicit
+evidence trail. The next goal is Phase 4 data automation, validation, and durable
+provenance—not jumping directly to Docker or Grafana.

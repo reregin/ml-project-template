@@ -36,6 +36,7 @@ dev = [
 ml-template-generate-data = "ml_project_template.example_data:main"
 ml-template-train = "ml_project_template.train:main"
 ml-template-predict = "ml_project_template.predict:main"
+ml-template-experiment = "ml_project_template.experiment:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -77,4 +78,17 @@ no_implicit_optional = true
 warn_redundant_casts = true
 warn_return_any = true
 warn_unused_configs = true
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "joblib",
+    "mlflow",
+    "mlflow.*",
+    "numpy",
+    "numpy.*",
+    "pandas",
+    "sklearn.*",
+]
+follow_imports = "skip"
 ignore_missing_imports = true

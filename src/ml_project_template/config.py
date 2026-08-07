@@ -31,11 +31,21 @@ class Settings:
     )
     test_size: float = 0.2
     random_state: int = 42
+    cv_folds: int = 3
+    selection_metric: str = "f1"
+    quality_gate_min_f1: float = 0.7
+    experiment_name: str = "ml-project-template"
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "project_root", self.project_root.resolve())
         if not 0 < self.test_size < 1:
             raise ValueError("test_size must be between 0 and 1.")
+        if self.cv_folds < 2:
+            raise ValueError("cv_folds must be at least 2.")
+        if self.selection_metric != "f1":
+            raise ValueError("Phase 3 currently supports selection_metric='f1' only.")
+        if not 0 <= self.quality_gate_min_f1 <= 1:
+            raise ValueError("quality_gate_min_f1 must be between 0 and 1.")
         if not self.target_column.strip():
             raise ValueError("target_column must not be empty.")
         if not self.feature_columns:
@@ -58,6 +68,18 @@ class Settings:
     @property
     def metrics_path(self) -> Path:
         return self.project_root / "models" / "metrics.json"
+
+    @property
+    def model_card_path(self) -> Path:
+        return self.project_root / "models" / "model-card.md"
+
+    @property
+    def tracking_uri(self) -> str:
+        configured_uri = os.getenv("MLFLOW_TRACKING_URI")
+        if configured_uri:
+            return configured_uri
+        database_path = (self.project_root / "mlflow.db").as_posix()
+        return f"sqlite:///{database_path}"
 
 
 def get_settings() -> Settings:

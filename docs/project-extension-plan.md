@@ -612,6 +612,13 @@ Learning focus: tests as executable lifecycle contracts.
 
 ### Phase 3 — Experiment management and evaluation
 
+**Status: completed and locally verified on 2026-08-07.** The new experiment
+command creates baseline and tuned MLflow runs from the same pipeline builder,
+selects exclusively by development cross-validation F1, evaluates only the
+winner on the reserved test set, and prevents local/MLflow model packaging when
+the configurable test-F1 gate fails. SQLite is the supported local tracking
+backend; a remote URI can be supplied without changing experiment code.
+
 Tasks:
 
 - centralize experiment configuration;
@@ -630,6 +637,20 @@ Acceptance criteria:
 - the chosen model is selected without test-set tuning;
 - every deployable model has a signature and valid request example;
 - failed quality gates prevent packaging.
+
+Implemented evidence:
+
+- `experiment.py` owns comparison, selection, final evaluation, and packaging;
+- `evaluation.py` owns the reserved split, metrics, and JSON diagnostics;
+- `tracking.py` records the data SHA-256, Git revision, resolved settings,
+  dataset profile, and optional search/selection artifacts;
+- the selected MLflow model includes the complete sklearn pipeline, inferred
+  signature, valid input example, and selection metadata;
+- `models/model-card.md` is generated from the selected run, while
+  `docs/model-card-template.md` explains the reusable evidence contract;
+- integration tests prove two-run comparison, signature-backed raw inference,
+  test-set isolation in selection metadata, and no packaging after a failed
+  gate.
 
 Learning focus: experiments are evidence, not just saved model files.
 

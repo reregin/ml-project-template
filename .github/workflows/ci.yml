@@ -36,7 +36,7 @@ jobs:
       - name: Install package and development tools
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e ".[dev]"
+          python -m pip install -e ".[dev,experiment]"
 
       - name: Check dependency consistency
         run: python -m pip check
@@ -55,4 +55,3 @@ jobs:
 
       - name: Test with branch coverage
         run: python -m pytest
-

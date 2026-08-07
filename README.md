@@ -2,7 +2,8 @@
 
 An executable, progressively adoptable template for tabular machine-learning
 projects. The current baseline covers a domain-neutral binary-classification
-workflow from raw data through a fitted model pipeline and raw-input inference.
+workflow from raw data through experiment comparison, a fitted model pipeline,
+and raw-input inference.
 
 The repository is intentionally layered:
 
@@ -12,8 +13,9 @@ The repository is intentionally layered:
 - **MLOps track:** CI-backed evolution toward packaging, serving, monitoring, and
   alerting.
 
-Phase 1 established the reliable core, and Phase 2 protects it with automated
-quality checks. This is not yet the complete MLOps template; see
+Phase 1 established the reliable core, Phase 2 protects it with automated
+quality checks, and Phase 3 adds evidence-based model comparison with MLflow.
+This is not yet the complete MLOps template; see
 [the extension plan](docs/project-extension-plan.md).
 
 For detailed setup, operation, customization, and troubleshooting instructions,
@@ -66,11 +68,31 @@ Generate the deterministic example data:
 python -m ml_project_template.example_data
 ```
 
-Train and save the full preprocessing-and-estimator pipeline:
+Train and save the simple Phase 1 preprocessing-and-estimator pipeline:
 
 ```powershell
 python -m ml_project_template.train
 ```
+
+To compare the baseline with a tuned candidate, select using development-only
+cross-validation, evaluate the winner once on the untouched test set, and
+package it only if the quality gate passes:
+
+```powershell
+python -m pip install -e ".[experiment]"
+python -m ml_project_template.experiment
+```
+
+This creates two comparable MLflow runs plus the selected local model, metrics,
+and model card. Inspect the runs in another terminal:
+
+```powershell
+mlflow ui --backend-store-uri sqlite:///D:/projects/ml-project-template/mlflow.db
+```
+
+Then open `http://127.0.0.1:5000`. If the repository is elsewhere, replace the
+absolute database path. See the handbook for remote tracking and quality-gate
+configuration.
 
 Predict from one raw record. The committed request deliberately includes a
 category that was not present during training:
@@ -121,7 +143,7 @@ Run the complete local quality gate on Windows:
 PowerShell -NoProfile -ExecutionPolicy Bypass -File scripts/check.ps1
 ```
 
-The gate checks formatting, lint, types, common security issues, 33 behavioral
+The gate checks formatting, lint, types, common security issues, 49 behavioral
 tests, and a 90% minimum branch-coverage threshold. GitHub Actions runs the same
 checks on Python 3.10 and 3.12 for pushes and pull requests.
 
@@ -146,7 +168,11 @@ checks on Python 3.10 and 3.12 for pushes and pull requests.
 │       ├── config.py                 # typed settings and paths
 │       ├── data.py                   # loading and minimum validation
 │       ├── example_data.py           # deterministic neutral fixture
+│       ├── evaluation.py             # splits, metrics, and diagnostics
+│       ├── experiment.py             # MLflow comparison, selection, and gate
+│       ├── model_card.py              # generated evidence summary
 │       ├── pipeline.py               # preprocessing + estimator builder
+│       ├── tracking.py               # MLflow setup and lineage artifacts
 │       ├── train.py                  # authoritative training command
 │       └── predict.py                # authoritative inference command
 ├── pyproject.toml                    # package and dependency groups
@@ -184,7 +210,6 @@ for a real use case.
 The following belong to later extension phases:
 
 - richer data contracts and versioning;
-- MLflow lineage, tuning, model selection, and quality gates;
 - reproducible training jobs and immutable packaged artifacts;
 - typed serving API and containers;
 - Prometheus, Grafana, alerts, drift, and operations documentation.

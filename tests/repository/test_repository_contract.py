@@ -34,3 +34,14 @@ def test_sample_request_uses_exact_configured_features() -> None:
     request = json.loads(request_path.read_text(encoding="utf-8"))
 
     assert list(request) == list(get_settings().feature_columns)
+
+
+def test_data_workflow_uses_shared_command_and_artifact_upload() -> None:
+    workflow = (PROJECT_ROOT / ".github" / "workflows" / "data-pipeline.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "python -m ml_project_template.prepare_data" in workflow
+    assert "verify_data_manifest" in workflow
+    assert "actions/upload-artifact@v4" in workflow
+    assert "git commit" not in workflow

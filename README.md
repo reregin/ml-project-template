@@ -14,7 +14,8 @@ The repository is intentionally layered:
   alerting.
 
 Phase 1 established the reliable core, Phase 2 protects it with automated
-quality checks, and Phase 3 adds evidence-based model comparison with MLflow.
+quality checks, Phase 3 adds evidence-based model comparison with MLflow, and
+Phase 4 adds deterministic data preparation with validated lineage.
 This is not yet the complete MLOps template; see
 [the extension plan](docs/project-extension-plan.md).
 
@@ -68,6 +69,13 @@ Generate the deterministic example data:
 python -m ml_project_template.example_data
 ```
 
+Validate and prepare it. This writes canonical data, a profile, and a manifest
+containing content-addressed input/output references:
+
+```powershell
+python -m ml_project_template.prepare_data
+```
+
 Train and save the simple Phase 1 preprocessing-and-estimator pipeline:
 
 ```powershell
@@ -107,6 +115,9 @@ Successful training creates ignored local outputs:
 
 ```text
 data/raw/example.csv
+data/processed/training.csv
+data/processed/manifest.json
+data/processed/profile.json
 models/model.joblib
 models/metrics.json
 ```
@@ -143,7 +154,7 @@ Run the complete local quality gate on Windows:
 PowerShell -NoProfile -ExecutionPolicy Bypass -File scripts/check.ps1
 ```
 
-The gate checks formatting, lint, types, common security issues, 49 behavioral
+The gate checks formatting, lint, types, common security issues, 66 behavioral
 tests, and a 90% minimum branch-coverage threshold. GitHub Actions runs the same
 checks on Python 3.10 and 3.12 for pushes and pull requests.
 
@@ -153,7 +164,7 @@ checks on Python 3.10 and 3.12 for pushes and pull requests.
 ├── app/                              # optional Streamlit client
 ├── data/
 │   ├── raw/                          # generated/local raw data
-│   ├── processed/                    # later pipeline outputs
+│   ├── processed/                    # validated data, manifest, and profile
 │   └── external/                     # third-party reference data
 ├── docs/
 │   ├── current-state-assessment.md
@@ -166,12 +177,15 @@ checks on Python 3.10 and 3.12 for pushes and pull requests.
 ├── src/
 │   └── ml_project_template/
 │       ├── config.py                 # typed settings and paths
-│       ├── data.py                   # loading and minimum validation
+│       ├── data.py                   # lineage-aware training-data loading
+│       ├── data_contract.py          # versioned schema and deterministic checks
 │       ├── example_data.py           # deterministic neutral fixture
 │       ├── evaluation.py             # splits, metrics, and diagnostics
 │       ├── experiment.py             # MLflow comparison, selection, and gate
 │       ├── model_card.py              # generated evidence summary
 │       ├── pipeline.py               # preprocessing + estimator builder
+│       ├── prepare_data.py            # idempotent raw-to-prepared CLI
+│       ├── lineage.py                 # content hashes and manifest verification
 │       ├── tracking.py               # MLflow setup and lineage artifacts
 │       ├── train.py                  # authoritative training command
 │       └── predict.py                # authoritative inference command
@@ -209,7 +223,6 @@ for a real use case.
 
 The following belong to later extension phases:
 
-- richer data contracts and versioning;
 - reproducible training jobs and immutable packaged artifacts;
 - typed serving API and containers;
 - Prometheus, Grafana, alerts, drift, and operations documentation.

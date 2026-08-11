@@ -1,0 +1,73 @@
+name: Data pipeline
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/data-pipeline.yml"
+      - "pyproject.toml"
+      - "src/ml_project_template/config.py"
+      - "src/ml_project_template/data_contract.py"
+      - "src/ml_project_template/example_data.py"
+      - "src/ml_project_template/lineage.py"
+      - "src/ml_project_template/prepare_data.py"
+  pull_request:
+    paths:
+      - ".github/workflows/data-pipeline.yml"
+      - "pyproject.toml"
+      - "src/ml_project_template/config.py"
+      - "src/ml_project_template/data_contract.py"
+      - "src/ml_project_template/example_data.py"
+      - "src/ml_project_template/lineage.py"
+      - "src/ml_project_template/prepare_data.py"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: data-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prepare-example:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install core package
+        run: python -m pip install -e .
+
+      - name: Generate deterministic raw fixture
+        run: python -m ml_project_template.example_data --output artifacts/data/raw.csv
+
+      - name: Validate and prepare data
+        run: |
+          python -m ml_project_template.prepare_data \
+            --input artifacts/data/raw.csv \
+            --output artifacts/data/training.csv \
+            --manifest artifacts/data/manifest.json \
+            --profile artifacts/data/profile.json \
+            --source-uri generated://neutral-binary-classification/${{ github.sha }}
+
+      - name: Verify manifest integrity
+        run: python -c "from pathlib import Path; from ml_project_template.lineage import verify_data_manifest; verify_data_manifest(Path('artifacts/data/training.csv'), Path('artifacts/data/manifest.json'))"
+
+      - name: Upload prepared-data evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: prepared-data-${{ github.sha }}
+          path: |
+            artifacts/data/training.csv
+            artifacts/data/manifest.json
+            artifacts/data/profile.json
+          if-no-files-found: error
+          retention-days: 14

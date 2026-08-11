@@ -8,34 +8,24 @@ from pathlib import Path
 import pandas as pd
 
 from ml_project_template.config import Settings
+from ml_project_template.data_contract import prepare_contract_data
+from ml_project_template.lineage import verify_data_manifest
 
 LOGGER = logging.getLogger(__name__)
 
 
 def validate_training_data(data: pd.DataFrame, settings: Settings) -> None:
-    """Validate the minimum contract required by the baseline pipeline."""
+    """Validate the complete Phase 4 contract required before training."""
 
-    if data.empty:
-        raise ValueError("Training data must contain at least one row.")
-
-    required_columns = {*settings.feature_columns, settings.target_column}
-    missing_columns = sorted(required_columns.difference(data.columns))
-    if missing_columns:
-        raise ValueError(f"Training data is missing columns: {missing_columns}")
-
-    if data[settings.target_column].isna().any():
-        raise ValueError("The target column must not contain missing values.")
-
-    target_values = set(data[settings.target_column].unique())
-    if target_values != {0, 1}:
-        raise ValueError(
-            "The Phase 1 example expects a binary target containing both 0 and 1. "
-            f"Received: {sorted(target_values, key=str)}"
-        )
+    prepare_contract_data(data, settings)
 
 
-def load_training_data(path: Path, settings: Settings) -> pd.DataFrame:
-    """Load a CSV dataset and apply the baseline data contract."""
+def load_training_data(
+    path: Path,
+    settings: Settings,
+    manifest_path: Path | None = None,
+) -> pd.DataFrame:
+    """Load, optionally verify lineage, and normalize contract-valid CSV data."""
 
     resolved_path = path.expanduser().resolve()
     if not resolved_path.is_file():
@@ -43,7 +33,8 @@ def load_training_data(path: Path, settings: Settings) -> pd.DataFrame:
             f"Training data not found at {resolved_path}. Generate the example data first."
         )
 
-    data = pd.read_csv(resolved_path)
-    validate_training_data(data, settings)
+    if manifest_path is not None:
+        verify_data_manifest(resolved_path, manifest_path)
+    data = prepare_contract_data(pd.read_csv(resolved_path), settings)
     LOGGER.info("event=data_loaded path=%s rows=%d columns=%d", resolved_path, *data.shape)
     return data

@@ -11,6 +11,7 @@ def render_model_card(
     selected_candidate: str,
     run_id: str,
     data_sha256: str,
+    data_reference: str | None = None,
     metrics: dict[str, float | int],
     quality_gate_min_f1: float,
     best_params: dict[str, Any],
@@ -21,6 +22,8 @@ def render_model_card(
     if not parameters:
         parameters = "- Default baseline parameters"
 
+    resolved_data_reference = data_reference or f"sha256:{data_sha256}"
+
     return f"""# Generated Model Card
 
 ## Model details
@@ -28,6 +31,7 @@ def render_model_card(
 - Selected candidate: `{selected_candidate}`
 - MLflow run ID: `{run_id}`
 - Training data SHA-256: `{data_sha256}`
+- Immutable data reference: `{resolved_data_reference}`
 - Task: tabular binary classification
 - Selection rule: highest development cross-validation F1
 

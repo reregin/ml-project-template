@@ -6,10 +6,13 @@ import json
 from pathlib import Path
 
 import joblib
+import pytest
 
 from ml_project_template.config import Settings
 from ml_project_template.example_data import write_example_data
+from ml_project_template.lineage import DataLineageError
 from ml_project_template.predict import predict_record
+from ml_project_template.prepare_data import prepare_data
 from ml_project_template.train import train_model
 
 
@@ -45,3 +48,34 @@ def test_training_artifact_is_compatible_with_raw_inference(tmp_path: Path) -> N
     assert result["prediction"] in {0, 1}
     assert result["probability"] is not None
     assert 0.0 <= result["probability"] <= 1.0
+
+
+def test_tampered_prepared_data_stops_before_model_fitting(tmp_path: Path) -> None:
+    settings = Settings(project_root=tmp_path)
+    raw_path = tmp_path / "data" / "raw" / "example.csv"
+    prepared_path = tmp_path / "data" / "processed" / "training.csv"
+    manifest_path = tmp_path / "data" / "processed" / "manifest.json"
+    artifact_path = tmp_path / "models" / "model.joblib"
+    write_example_data(raw_path, rows=80, random_state=settings.random_state)
+    prepare_data(
+        input_path=raw_path,
+        output_path=prepared_path,
+        manifest_path=manifest_path,
+        profile_path=tmp_path / "data" / "processed" / "profile.json",
+        settings=settings,
+    )
+    prepared_path.write_text(
+        prepared_path.read_text(encoding="utf-8") + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(DataLineageError, match="does not match"):
+        train_model(
+            prepared_path,
+            artifact_path,
+            tmp_path / "models" / "metrics.json",
+            settings,
+            manifest_path,
+        )
+
+    assert not artifact_path.exists()

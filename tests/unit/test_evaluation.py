@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pandas as pd
+import pytest
 
 from ml_project_template.config import Settings
 from ml_project_template.evaluation import (
@@ -51,3 +54,49 @@ def test_metrics_and_diagnostics_are_json_serializable(
     assert set(report) >= {"0", "1", "accuracy", "macro avg", "weighted avg"}
     assert len(matrix) == 2
     assert all(len(row) == 2 for row in matrix)
+
+
+def test_time_split_puts_newest_rows_in_test_without_shuffling(tmp_path: Path) -> None:
+    settings = Settings(
+        project_root=tmp_path,
+        split_strategy="time",
+        time_column="event_time",
+        cv_folds=2,
+    )
+    timestamps = pd.Series(pd.date_range("2025-01-01", periods=40, freq="D"))
+    features = pd.DataFrame({"value": range(40)})
+    target = pd.Series([0, 1] * 20)
+    shuffled = pd.Series(range(40)).sample(frac=1, random_state=7).tolist()
+
+    split = split_development_test(
+        features.iloc[shuffled],
+        target.iloc[shuffled],
+        settings,
+        timestamps.iloc[shuffled],
+    )
+
+    assert len(split.X_test) == 8
+    assert split.X_development["value"].max() == 31
+    assert split.X_test["value"].min() == 32
+
+
+def test_time_split_requires_valid_timestamps_and_both_test_classes(tmp_path: Path) -> None:
+    settings = Settings(
+        project_root=tmp_path,
+        split_strategy="time",
+        time_column="event_time",
+        cv_folds=2,
+    )
+    features = pd.DataFrame({"value": range(20)})
+    target = pd.Series([0, 1] * 8 + [1] * 4)
+
+    with pytest.raises(ValueError, match="timestamps are required"):
+        split_development_test(features, target, settings)
+
+    with pytest.raises(ValueError, match="test split"):
+        split_development_test(
+            features,
+            target,
+            settings,
+            pd.Series(pd.date_range("2025-01-01", periods=20)),
+        )

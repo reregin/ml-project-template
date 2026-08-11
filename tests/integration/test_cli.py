@@ -11,7 +11,7 @@ import joblib
 import numpy as np
 import pytest
 
-from ml_project_template import example_data, predict, train
+from ml_project_template import example_data, predict, prepare_data, train
 
 
 class ZeroProbabilityModel:
@@ -30,7 +30,9 @@ def test_generate_train_and_predict_cli_with_file(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    data_path = tmp_path / "data.csv"
+    raw_data_path = tmp_path / "raw.csv"
+    data_path = tmp_path / "training.csv"
+    manifest_path = tmp_path / "manifest.json"
     artifact_path = tmp_path / "model.joblib"
     metrics_path = tmp_path / "metrics.json"
     request_path = tmp_path / "request.json"
@@ -49,10 +51,29 @@ def test_generate_train_and_predict_cli_with_file(
     monkeypatch.setattr(
         sys,
         "argv",
-        ["example-data", "--output", str(data_path), "--rows", "40"],
+        ["example-data", "--output", str(raw_data_path), "--rows", "40"],
     )
     example_data.main()
-    assert data_path.is_file()
+    assert raw_data_path.is_file()
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "prepare-data",
+            "--input",
+            str(raw_data_path),
+            "--output",
+            str(data_path),
+            "--manifest",
+            str(manifest_path),
+            "--profile",
+            str(tmp_path / "profile.json"),
+        ],
+    )
+    prepare_data.main()
+    preparation_output = json.loads(capsys.readouterr().out)
+    assert preparation_output["output_reference"].startswith("sha256:")
 
     monkeypatch.setattr(
         sys,
@@ -61,6 +82,8 @@ def test_generate_train_and_predict_cli_with_file(
             "train",
             "--data",
             str(data_path),
+            "--data-manifest",
+            str(manifest_path),
             "--artifact",
             str(artifact_path),
             "--metrics",
@@ -70,6 +93,7 @@ def test_generate_train_and_predict_cli_with_file(
     train.main()
     training_output = json.loads(capsys.readouterr().out)
     assert training_output["training_rows"] == 32
+    assert training_output["data_reference"] == preparation_output["output_reference"]
     assert artifact_path.is_file()
     assert metrics_path.is_file()
 

@@ -34,6 +34,7 @@ dev = [
 
 [project.scripts]
 ml-template-generate-data = "ml_project_template.example_data:main"
+ml-template-prepare-data = "ml_project_template.prepare_data:main"
 ml-template-train = "ml_project_template.train:main"
 ml-template-predict = "ml_project_template.predict:main"
 ml-template-experiment = "ml_project_template.experiment:main"

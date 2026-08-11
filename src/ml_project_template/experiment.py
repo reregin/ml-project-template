@@ -16,7 +16,7 @@ import pandas as pd
 from mlflow.models import infer_signature
 from mlflow.tracking import MlflowClient
 from sklearn.base import clone
-from sklearn.model_selection import GridSearchCV, StratifiedKFold, cross_validate
+from sklearn.model_selection import GridSearchCV, StratifiedKFold, TimeSeriesSplit, cross_validate
 
 from ml_project_template.config import Settings, configure_logging, get_settings
 from ml_project_template.data import load_training_data
@@ -25,13 +25,12 @@ from ml_project_template.evaluation import (
     diagnostic_payloads,
     split_development_test,
 )
+from ml_project_template.lineage import git_revision, read_data_manifest, sha256_file
 from ml_project_template.model_card import render_model_card, write_model_card
 from ml_project_template.pipeline import build_pipeline
 from ml_project_template.tracking import (
     configure_tracking,
-    git_revision,
     log_reproducibility_artifacts,
-    sha256_file,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -84,7 +83,9 @@ class ExperimentResult:
         }
 
 
-def _cross_validation(settings: Settings) -> StratifiedKFold:
+def _cross_validation(settings: Settings) -> Any:
+    if settings.split_strategy == "time":
+        return TimeSeriesSplit(n_splits=settings.cv_folds)
     return StratifiedKFold(
         n_splits=settings.cv_folds,
         shuffle=True,
@@ -106,6 +107,7 @@ def _candidate_parameters(
     candidate_name: str,
     data_sha256: str,
     code_revision: str,
+    data_reference: str,
 ) -> dict[str, Any]:
     return {
         "candidate": candidate_name,
@@ -114,6 +116,7 @@ def _candidate_parameters(
         "test_size": settings.test_size,
         "random_state": settings.random_state,
         "data_sha256": data_sha256,
+        "data_reference": data_reference,
         "code_revision": code_revision,
     }
 
@@ -126,6 +129,8 @@ def run_baseline_candidate(
     data: pd.DataFrame,
     data_sha256: str,
     code_revision: str,
+    data_reference: str,
+    data_lineage: dict[str, Any],
 ) -> CandidateResult:
     """Track the default pipeline using development-only cross-validation."""
 
@@ -151,6 +156,7 @@ def run_baseline_candidate(
                 "baseline",
                 data_sha256,
                 code_revision,
+                data_reference,
             )
         )
         mlflow.log_params(best_params)
@@ -167,6 +173,7 @@ def run_baseline_candidate(
             data=data,
             data_sha256=data_sha256,
             code_revision=code_revision,
+            data_lineage=data_lineage,
         )
         return CandidateResult(
             name="baseline",
@@ -186,6 +193,8 @@ def run_tuned_candidate(
     data: pd.DataFrame,
     data_sha256: str,
     code_revision: str,
+    data_reference: str,
+    data_lineage: dict[str, Any],
 ) -> CandidateResult:
     """Tune only within development data and track the complete search evidence."""
 
@@ -223,6 +232,7 @@ def run_tuned_candidate(
                 "tuned",
                 data_sha256,
                 code_revision,
+                data_reference,
             )
         )
         mlflow.log_params(
@@ -245,6 +255,7 @@ def run_tuned_candidate(
             data=data,
             data_sha256=data_sha256,
             code_revision=code_revision,
+            data_lineage=data_lineage,
             extra_artifacts={"cv_results.csv": cv_results_frame},
         )
         return CandidateResult(
@@ -283,18 +294,36 @@ def run_experiment(
     tracking_uri: str,
     experiment_name: str,
     quality_gate_min_f1: float,
+    data_manifest_path: Path | None = None,
 ) -> ExperimentResult:
     """Run comparison, select without test leakage, gate, log, and package."""
 
     if not 0 <= quality_gate_min_f1 <= 1:
         raise ValueError("quality_gate_min_f1 must be between 0 and 1.")
 
-    configure_tracking(tracking_uri, experiment_name)
     resolved_data_path = data_path.expanduser().resolve()
-    data = load_training_data(resolved_data_path, settings)
+    data = load_training_data(resolved_data_path, settings, data_manifest_path)
+    manifest = read_data_manifest(data_manifest_path) if data_manifest_path else None
+    data_reference = (
+        str(manifest["output"]["immutable_reference"])
+        if manifest
+        else f"sha256:{sha256_file(resolved_data_path)}"
+    )
+    data_lineage = (
+        {
+            "prepared_data_reference": data_reference,
+            "raw_input_reference": str(manifest["input"]["immutable_reference"]),
+            "source_uri": manifest["input"].get("source_uri"),
+            "manifest_path": str(data_manifest_path.expanduser().resolve()),
+        }
+        if manifest and data_manifest_path
+        else {"prepared_data_reference": data_reference}
+    )
+    configure_tracking(tracking_uri, experiment_name)
     features = data.loc[:, list(settings.feature_columns)]
     target = data[settings.target_column]
-    split = split_development_test(features, target, settings)
+    timestamps = data[settings.time_column] if settings.time_column else None
+    split = split_development_test(features, target, settings, timestamps)
     data_digest = sha256_file(resolved_data_path)
     revision = git_revision(settings.project_root)
 
@@ -306,6 +335,8 @@ def run_experiment(
             data=data,
             data_sha256=data_digest,
             code_revision=revision,
+            data_reference=data_reference,
+            data_lineage=data_lineage,
         ),
         run_tuned_candidate(
             X_development=split.X_development,
@@ -314,6 +345,8 @@ def run_experiment(
             data=data,
             data_sha256=data_digest,
             code_revision=revision,
+            data_reference=data_reference,
+            data_lineage=data_lineage,
         ),
     ]
     selected = _select_candidate(candidates)
@@ -362,6 +395,7 @@ def run_experiment(
             data=data,
             data_sha256=data_digest,
             code_revision=revision,
+            data_lineage=data_lineage,
             extra_artifacts={
                 "selection.json": selection_payload,
                 "classification_report.json": classification_payload,
@@ -396,6 +430,7 @@ def run_experiment(
             selected_candidate=selected.name,
             run_id=selected.run_id,
             data_sha256=data_digest,
+            data_reference=data_reference,
             metrics=test_metrics,
             quality_gate_min_f1=quality_gate_min_f1,
             best_params=selected.best_params,
@@ -413,6 +448,7 @@ def run_experiment(
         "selected_run_id": selected.run_id,
         "candidate_run_ids": {candidate.name: candidate.run_id for candidate in candidates},
         "data_sha256": data_digest,
+        "data_reference": data_reference,
         "code_revision": revision,
         "model_uri": model_info.model_uri,
     }
@@ -441,7 +477,8 @@ def run_experiment(
 def parse_args() -> argparse.Namespace:
     settings = get_settings()
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--data", type=Path, default=settings.raw_data_path)
+    parser.add_argument("--data", type=Path, default=settings.prepared_data_path)
+    parser.add_argument("--data-manifest", type=Path)
     parser.add_argument("--artifact", type=Path, default=settings.model_artifact_path)
     parser.add_argument("--metrics", type=Path, default=settings.metrics_path)
     parser.add_argument("--model-card", type=Path, default=settings.model_card_path)
@@ -459,6 +496,9 @@ def main() -> None:
     configure_logging()
     settings = get_settings()
     args = parse_args()
+    data_manifest = args.data_manifest
+    if data_manifest is None and args.data.expanduser().resolve() == settings.prepared_data_path:
+        data_manifest = settings.data_manifest_path
     result = run_experiment(
         data_path=args.data,
         artifact_path=args.artifact,
@@ -468,6 +508,7 @@ def main() -> None:
         tracking_uri=args.tracking_uri,
         experiment_name=args.experiment_name,
         quality_gate_min_f1=args.min_test_f1,
+        data_manifest_path=data_manifest,
     )
     print(json.dumps(result.as_dict(), indent=2, sort_keys=True))
 

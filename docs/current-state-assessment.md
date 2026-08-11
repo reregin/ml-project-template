@@ -19,7 +19,7 @@ production-ready system.
 ## 2. Honest summary
 
 The current repository is a **useful tabular data-science starter with a tested
-Phase 3 experiment-management core**. Its strongest ideas are separation of
+Phase 4 data-and-experiment core**. Its strongest ideas are separation of
 experimentation from reusable code, a split-first leakage policy, structured
 data directories, an installable package, and one raw-input-to-prediction
 pipeline artifact.
@@ -29,16 +29,18 @@ dependency, training, artifact, and inference consistency. Phase 2 now enforces
 those contracts with unit/integration tests, coverage, formatting, linting, type
 checking, security scanning, and CI. Phase 3 now adds MLflow comparison,
 development-only selection, final-test isolation, run lineage, signatures,
-diagnostics, model cards, and a packaging quality gate. Richer data contracts,
-data automation, serving, deployment, and operations remain later phases.
+diagnostics, model cards, and a packaging quality gate. Phase 4 now adds a
+versioned data contract, deterministic preparation, profiles, content-addressed
+lineage, manifest verification, temporal split support, and path-filtered data
+CI. Serving, deployment, and operations remain later phases.
 
 Current maturity by track:
 
 | Track | Current status | Explanation |
 |---|---|---|
 | DS experimentation | Good foundation | Ordered notebooks, data layout, EDA prompts, split-first intent, preprocessing and training scaffolding exist. |
-| ML engineering | Tracked Phase 3 baseline | The complete pipeline is protected by 49 tests and 96% branch coverage; baseline/tuned runs now carry comparable metrics, lineage, diagnostics, signatures, input examples, and model-card evidence. |
-| MLOps | Early foundation | Experiment tracking and a packaging gate exist, but there is no retraining CI, immutable release artifact, container, service API, monitoring stack, alerting, or release workflow. |
+| ML engineering | Validated Phase 4 baseline | The complete pipeline is protected by 66 tests and 93% branch coverage; prepared data is contract-checked, content-addressed, and verified before fitting, while runs retain comparison and model evidence. |
+| MLOps | Data/experiment foundation | Data CI, experiment tracking, and a packaging gate exist, but there is no retraining CI, immutable model release, container, service API, monitoring stack, alerting, or release workflow. |
 
 The right strategy is to preserve this now-working baseline and add tests,
 experimentation, automation, and optional MLOps layers in order.
@@ -88,7 +90,11 @@ The intended current flow is:
 ```text
 domain-neutral raw example data
    ↓
-minimum data validation → stratified train/test split
+versioned contract validation + deterministic canonicalization
+   ↓
+prepared CSV + profile + SHA-256 lineage manifest
+   ↓
+manifest verification → stratified random or chronological test split
    ↓
 preprocessing fitted on the training split only
    ↓
@@ -271,7 +277,9 @@ What remains:
 - add data contracts, provenance, version references, and validation;
 - ensure ignored directories retain `.gitkeep` placeholders if desired.
 
-These are addressed in Phase 4.
+These are now addressed for the generic binary-classification scope in Phase 4.
+Dataset-specific semantic rules and durable remote retention remain project
+responsibilities.
 
 ### 4.4 Split-first leakage prevention
 
@@ -428,10 +436,11 @@ baseline.
 
 ### 5.1 Explicit Phase 1 feature settings
 
-The baseline explicitly identifies numeric and categorical columns, which is
-safer than guessing semantics entirely from pandas dtypes. It is still only a
-minimum contract: Phase 4 must add types, nullability, ranges, category policy,
-sensitive-field rules, and project-appropriate overrides.
+The baseline explicitly identifies numeric and categorical columns and Phase 4
+now enforces required fields, numeric coercion/finite values, missing-value
+policy, categorical blanks/cardinality, duplicate rows, target support, and an
+optional temporal field. Domain ranges, sensitive-field policy, and semantic
+constraints still require project-specific configuration or validators.
 
 ### 5.2 One simple estimator
 
@@ -586,7 +595,7 @@ artifact contract.
 | **Completed:** unified preprocessing + estimator artifact | Prevents training-serving skew | Phase 1 |
 | **Partial:** validated typed configuration | Prevents incompatible or hidden settings | Phase 1; expanded Phase 3 |
 | **Completed:** minimal/optional dependency groups | Keeps DS-only use lightweight and portable | Phase 1 |
-| **Partial:** minimum data/schema contract | Detects bad inputs before training or serving | Phase 1; expanded Phase 4 |
+| **Completed for the example:** versioned data/schema contract | Detects malformed or incompatible training input before fitting | Phase 4 |
 | **Completed:** automated unit and integration tests | Turns assumptions into executable guarantees | Phase 2 |
 | **Completed:** pull-request CI | Proves clean-checkout behavior continuously | Phase 2 |
 | **Completed:** repository/notebook contract checks | Shows that the documented learning surface remains structurally valid | Phase 2 |
@@ -595,8 +604,8 @@ artifact contract.
 | **Partial:** code/data/config lineage | Records Git, data SHA, settings, and profiles; immutable data storage remains | Phases 3 and 4 |
 | **Partial:** quality gates | Stops weak models from local/MLflow packaging; release gates remain | Phases 3 and 5 |
 | **Completed:** model card | Records intended use, limitations, and evidence | Phase 3 |
-| Automated data pipeline | Converts stable notebook logic into repeatable execution | Phase 4 |
-| Data version/provenance strategy | Connects artifacts to immutable training inputs | Phase 4 |
+| **Completed:** automated data pipeline | Converts stable non-learned preparation into repeatable execution | Phase 4 |
+| **Partial:** data version/provenance strategy | SHA manifests and CI artifacts cover the fixture; real durable storage remains project-specific | Phase 4 |
 | Parameterized reproducible training job | Makes local and CI execution identical | Phase 5 |
 | Retraining workflow and artifact retention | Produces traceable model versions | Phase 5 |
 | Immutable artifact/image tags | Enables exact deployment and rollback | Phase 5 |
@@ -802,7 +811,7 @@ Some ideas are easy to confuse; these distinctions should guide future changes:
 
 ## 10. What can reasonably be used today
 
-After Phase 3, the repository can be used safely as:
+After Phase 4, the repository can be used safely as:
 
 - a reference layout for a small tabular DS project;
 - a checklist for leakage-aware EDA and preprocessing;
@@ -816,6 +825,9 @@ After Phase 3, the repository can be used safely as:
   tuning strategy without selecting on the test set;
 - a signature-backed, quality-gated model packaging example with reproducibility
   artifacts and a generated model card.
+- an idempotent, schema-validated raw-to-prepared data example with tamper-evident
+  manifests and deterministic profiles;
+- a teaching example for stratified random or forward-only temporal evaluation.
 
 It should not yet be trusted unchanged as:
 
@@ -839,11 +851,12 @@ Recommended reading order for a future session:
 1. read this document to understand what exists and why;
 2. read Sections 1–6 of `project-extension-plan.md` for target principles and
    contracts;
-3. continue sequentially with Phase 4 after reviewing the Phase 3 baseline;
+3. continue sequentially with Phase 5 after reviewing the Phase 4 baseline;
 4. update this assessment as milestones are completed so it does not become a
    stale description of the repository.
 
 Phase 1 proved one clean raw-input-to-prediction path, Phase 2 continuously
-enforces it through tests and CI, and Phase 3 makes model comparison an explicit
-evidence trail. The next goal is Phase 4 data automation, validation, and durable
-provenance—not jumping directly to Docker or Grafana.
+enforces it through tests and CI, Phase 3 makes model comparison an explicit
+evidence trail, and Phase 4 connects that evidence to validated prepared data.
+The next goal is Phase 5 reproducible training and immutable model packaging—not
+jumping directly to Docker or Grafana.

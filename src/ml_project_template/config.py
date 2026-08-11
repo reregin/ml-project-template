@@ -6,6 +6,7 @@ import logging
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Literal
 
 
 def _default_project_root() -> Path:
@@ -29,8 +30,14 @@ class Settings:
         "category_feature_1",
         "category_feature_2",
     )
+    data_contract_version: str = "1"
+    minimum_rows: int = 20
+    max_category_cardinality: int = 100
+    allow_extra_columns: bool = False
     test_size: float = 0.2
     random_state: int = 42
+    split_strategy: Literal["random", "time"] = "random"
+    time_column: str | None = None
     cv_folds: int = 3
     selection_metric: str = "f1"
     quality_gate_min_f1: float = 0.7
@@ -40,6 +47,19 @@ class Settings:
         object.__setattr__(self, "project_root", self.project_root.resolve())
         if not 0 < self.test_size < 1:
             raise ValueError("test_size must be between 0 and 1.")
+        if self.minimum_rows < 2:
+            raise ValueError("minimum_rows must be at least 2.")
+        if self.max_category_cardinality < 2:
+            raise ValueError("max_category_cardinality must be at least 2.")
+        if self.split_strategy not in {"random", "time"}:
+            raise ValueError("split_strategy must be 'random' or 'time'.")
+        if self.split_strategy == "time" and not self.time_column:
+            raise ValueError("time_column is required when split_strategy='time'.")
+        if self.time_column and self.time_column in {
+            *self.feature_columns,
+            self.target_column,
+        }:
+            raise ValueError("time_column must be separate from features and target.")
         if self.cv_folds < 2:
             raise ValueError("cv_folds must be at least 2.")
         if self.selection_metric != "f1":
@@ -60,6 +80,18 @@ class Settings:
     @property
     def raw_data_path(self) -> Path:
         return self.project_root / "data" / "raw" / "example.csv"
+
+    @property
+    def prepared_data_path(self) -> Path:
+        return self.project_root / "data" / "processed" / "training.csv"
+
+    @property
+    def data_manifest_path(self) -> Path:
+        return self.project_root / "data" / "processed" / "manifest.json"
+
+    @property
+    def data_profile_path(self) -> Path:
+        return self.project_root / "data" / "processed" / "profile.json"
 
     @property
     def model_artifact_path(self) -> Path:

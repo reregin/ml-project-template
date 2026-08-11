@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Any
 
@@ -34,8 +35,34 @@ def split_development_test(
     features: pd.DataFrame,
     target: pd.Series,
     settings: Settings,
+    timestamps: pd.Series | None = None,
 ) -> DatasetSplit:
-    """Reserve the test set before any model comparison or tuning."""
+    """Reserve the test set using the configured random or temporal boundary."""
+
+    if settings.split_strategy == "time":
+        if timestamps is None:
+            raise ValueError("timestamps are required for a time-based split.")
+        parsed_timestamps = pd.to_datetime(timestamps, errors="coerce", utc=True)
+        if parsed_timestamps.isna().any():
+            raise ValueError("timestamps must be parseable and non-missing.")
+        ordered_positions = parsed_timestamps.sort_values(kind="mergesort").index
+        ordered_features = features.loc[ordered_positions]
+        ordered_target = target.loc[ordered_positions]
+        test_rows = math.ceil(len(ordered_features) * settings.test_size)
+        boundary = len(ordered_features) - test_rows
+        X_development = ordered_features.iloc[:boundary]
+        X_test = ordered_features.iloc[boundary:]
+        y_development = ordered_target.iloc[:boundary]
+        y_test = ordered_target.iloc[boundary:]
+        for name, values in (("development", y_development), ("test", y_test)):
+            if set(values.unique()) != {0, 1}:
+                raise ValueError(f"The time-based {name} split must contain both target classes.")
+        if int(y_development.value_counts().min()) < settings.cv_folds:
+            raise ValueError(
+                "The time-based development split has too few rows per class "
+                "for the configured cross-validation."
+            )
+        return DatasetSplit(X_development, X_test, y_development, y_test)
 
     X_development, X_test, y_development, y_test = train_test_split(
         features,

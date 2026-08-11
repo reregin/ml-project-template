@@ -656,6 +656,13 @@ Learning focus: experiments are evidence, not just saved model files.
 
 ### Phase 4 — Data automation and versioning
 
+**Status: completed and locally verified on 2026-08-08.** The core package now
+provides an idempotent raw-to-prepared command, a versioned schema contract,
+deterministic profile and manifest files, content-addressed raw/prepared data
+references, manifest verification before fitting, and random or chronological
+split policies. A path-filtered workflow regenerates the neutral fixture and
+uploads prepared evidence without committing generated data.
+
 Tasks:
 
 - expose ingestion/preprocessing as idempotent CLIs;
@@ -673,6 +680,27 @@ Acceptance criteria:
 - learned preprocessing never sees validation/test data;
 - data lineage connects a model run to an immutable input reference;
 - invalid data stops before training.
+
+Implemented evidence and decisions:
+
+- `data_contract.py` enforces required/undeclared columns, safe numeric and
+  target coercion, finite values, categorical blanks/cardinality, duplicate
+  rows, minimum size/class support, and optional UTC time fields;
+- `prepare_data.py` performs only deterministic, non-learned normalization and
+  atomically writes `training.csv`, `profile.json`, and `manifest.json`;
+- learned imputers, encoders, scalers, and estimators remain inside the sklearn
+  pipeline and are fitted only after the development/test boundary;
+- `lineage.py` verifies prepared bytes against SHA-256 before training or MLflow
+  run creation; experiment evidence connects the raw input reference, prepared
+  reference, optional immutable source URI, config, code revision, and model;
+- time-based projects reserve the newest rows and use forward-only
+  `TimeSeriesSplit`; the default remains stratified random splitting;
+- `.github/workflows/data-pipeline.yml` is path-filtered and uploads generated
+  data/profile/manifest artifacts under the commit SHA;
+- DVC is deliberately not a core dependency. Content hashes and workflow
+  artifacts are sufficient for the small regenerable fixture. Real projects
+  should add DVC or versioned object storage when data is large, shared,
+  non-regenerable, or must be retained beyond CI artifact lifetimes.
 
 Learning focus: repeatability, lineage, and leakage boundaries.
 

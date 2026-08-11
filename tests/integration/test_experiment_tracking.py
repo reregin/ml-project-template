@@ -13,6 +13,7 @@ from ml_project_template.config import Settings
 from ml_project_template.example_data import write_example_data
 from ml_project_template.experiment import QualityGateError, run_experiment
 from ml_project_template.predict import predict_record
+from ml_project_template.prepare_data import prepare_data
 
 
 def _experiment_paths(tmp_path: Path) -> dict[str, Path]:
@@ -31,7 +32,16 @@ def _sqlite_tracking_uri(tmp_path: Path) -> str:
 def test_experiment_compares_runs_and_packages_only_selected_model(tmp_path: Path) -> None:
     settings = Settings(project_root=tmp_path, cv_folds=2, quality_gate_min_f1=0.0)
     paths = _experiment_paths(tmp_path)
-    write_example_data(paths["data_path"], rows=80, random_state=settings.random_state)
+    raw_path = tmp_path / "data" / "raw" / "example.csv"
+    manifest_path = tmp_path / "data" / "processed" / "manifest.json"
+    write_example_data(raw_path, rows=80, random_state=settings.random_state)
+    prepared = prepare_data(
+        input_path=raw_path,
+        output_path=paths["data_path"],
+        manifest_path=manifest_path,
+        profile_path=tmp_path / "data" / "processed" / "profile.json",
+        settings=settings,
+    )
     tracking_uri = _sqlite_tracking_uri(tmp_path)
     experiment_name = "phase-3-success"
 
@@ -41,6 +51,7 @@ def test_experiment_compares_runs_and_packages_only_selected_model(tmp_path: Pat
         tracking_uri=tracking_uri,
         experiment_name=experiment_name,
         quality_gate_min_f1=0.0,
+        data_manifest_path=manifest_path,
     )
 
     assert result.artifact_path.is_file()
@@ -57,6 +68,7 @@ def test_experiment_compares_runs_and_packages_only_selected_model(tmp_path: Pat
     assert metrics_payload["test_used_during_selection"] is False
     assert metrics_payload["quality_gate_passed"] is True
     assert len(metrics_payload["data_sha256"]) == 64
+    assert metrics_payload["data_reference"] == prepared.output_reference
 
     experiment = mlflow.get_experiment_by_name(experiment_name)
     assert experiment is not None
@@ -66,6 +78,7 @@ def test_experiment_compares_runs_and_packages_only_selected_model(tmp_path: Pat
     assert selected_run.data.tags["selection_status"] == "selected"
     assert selected_run.data.tags["quality_gate"] == "passed"
     assert "test_f1" in selected_run.data.metrics
+    assert selected_run.data.params["data_reference"] == prepared.output_reference
 
     model_info = mlflow.models.get_model_info(result.model_uri)
     assert model_info.signature is not None

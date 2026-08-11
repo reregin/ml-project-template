@@ -8,8 +8,8 @@ explains how the current system works, how to operate it, what to replace for a
 real project, and how to diagnose common failures.
 
 The handbook will grow with the implementation phases. It currently documents
-the completed **Phase 1 core**, **Phase 2 quality layer**, and **Phase 3
-experiment-management layer**:
+the completed **Phase 1 core**, **Phase 2 quality layer**, **Phase 3
+experiment-management layer**, and **Phase 4 data layer**:
 
 - installable Python package;
 - deterministic, domain-neutral example data;
@@ -26,9 +26,13 @@ experiment-management layer**:
 - MLflow baseline/tuned comparison, lineage, diagnostics, and signatures;
 - development-only model selection and an untouched final test set;
 - a packaging quality gate and generated model card.
+- an idempotent data-preparation CLI with schema and output validation;
+- deterministic profiles and content-addressed lineage manifests;
+- random and forward-only temporal split policies;
+- path-filtered data CI with generated artifact upload.
 
-Later editions will add data versioning, reproducible training/release
-packaging, serving, monitoring, and release workflows.
+Later editions will add reproducible training/release packaging, serving,
+monitoring, and release workflows.
 
 ---
 
@@ -46,6 +50,12 @@ The Phase 1 execution path is:
 
 ```text
 data/raw/example.csv
+        ↓
+contract validation + deterministic preparation
+        ↓
+data/processed/training.csv + profile.json + manifest.json
+        ↓
+verify prepared-data SHA-256 before fitting
         ↓
 load and validate required columns
         ↓
@@ -112,7 +122,10 @@ ml-project-template/
 |---|---|
 | `pyproject.toml` | Package metadata, dependencies, optional groups, and installed commands |
 | `config.py` | Typed settings, feature names, target, split parameters, and paths |
-| `data.py` | CSV loading and minimum training-data validation |
+| `data_contract.py` | Versioned schema, safe canonicalization, and deterministic profile |
+| `prepare_data.py` | Idempotent raw-to-prepared command and evidence writer |
+| `lineage.py` | SHA-256 identities and manifest verification |
+| `data.py` | Lineage-aware training-data loading and contract validation |
 | `example_data.py` | Reproducible synthetic dataset generator |
 | `pipeline.py` | Preprocessing plus baseline estimator construction |
 | `train.py` | Authoritative training and artifact-writing command |
@@ -301,19 +314,68 @@ template's connections, not to suggest a business problem.
 
 ---
 
-## 5. Understand the Phase 1 data contract
+## 5. Prepare data and understand the Phase 4 contract
 
-The minimum contract is defined by `Settings` and enforced by `data.py`.
+Run deterministic preparation after generation or real ingestion:
+
+```powershell
+python -m ml_project_template.prepare_data
+```
+
+Default outputs:
+
+```text
+data/processed/training.csv
+data/processed/profile.json
+data/processed/manifest.json
+```
+
+The versioned contract is defined by `Settings`, enforced by
+`data_contract.py`, and rechecked by `data.py` before training.
 
 Training currently requires:
 
-- a non-empty CSV;
-- all configured numeric and categorical columns;
+- at least the configured minimum number of rows;
+- exactly the declared columns unless extras are explicitly allowed;
+- parseable, finite non-missing numeric values while permitting configured
+  feature nulls for the fitted imputer;
+- non-blank categorical values within the configured cardinality limit;
+- no duplicate rows or column names;
 - the configured target column;
 - no missing target values;
-- both binary target values `0` and `1`.
+- both binary target values `0` and `1`, with enough class support for splitting
+  and cross-validation;
+- a valid non-missing UTC-normalizable time column when temporal splitting is
+  enabled.
 
 Missing feature values are permitted because the pipeline imputes them.
+Preparation does not impute, encode, scale, select features, or fit any learned
+statistics. Those operations remain inside the sklearn pipeline after the split.
+
+### 5.1 Preparation options
+
+```powershell
+python -m ml_project_template.prepare_data `
+  --input path/to/raw.csv `
+  --output data/processed/training.csv `
+  --manifest data/processed/manifest.json `
+  --profile data/processed/profile.json `
+  --source-uri "s3://bucket/data.csv?versionId=immutable-version"
+```
+
+`--source-uri` is optional but should identify an immutable upstream object
+version, snapshot, or dataset release when one exists. The SHA-256 reference is
+always generated regardless.
+
+### 5.2 Idempotency and tamper detection
+
+With identical input bytes, configuration, and code revision, repeated commands
+write identical prepared CSV, profile, and manifest bytes. Writes are atomic so
+an interrupted replacement does not expose a partially written file.
+
+Before fitting, `train` and `experiment` recompute the prepared CSV hash and
+compare it with `manifest.json`. Modified bytes stop the workflow before a model
+or MLflow run is created.
 
 The Phase 1 contract does not yet validate:
 
@@ -449,18 +511,20 @@ a model comparison.
 
 ## 8. Train the example model
 
-Generate data first, then run:
+Generate and prepare data first, then run:
 
 ```powershell
+python -m ml_project_template.example_data
+python -m ml_project_template.prepare_data
 python -m ml_project_template.train
 ```
 
 Training performs these steps:
 
-1. resolves and reads the configured CSV;
-2. validates the minimum training contract;
+1. verifies the prepared CSV against its manifest hash;
+2. reads and revalidates the complete data contract;
 3. selects configured features and target;
-4. creates a stratified train/test split;
+4. creates the configured stratified-random or chronological train/test split;
 5. constructs a new unfitted pipeline;
 6. fits the entire pipeline on training rows;
 7. predicts and calculates metrics on test rows;
@@ -775,13 +839,21 @@ Generate the default data:
 
 ```powershell
 python -m ml_project_template.example_data
+python -m ml_project_template.prepare_data
 ```
 
-Or pass the intended CSV explicitly:
+Or prepare the intended CSV explicitly before training:
 
 ```powershell
-python -m ml_project_template.train --data path/to/data.csv
+python -m ml_project_template.prepare_data --input path/to/raw.csv
+python -m ml_project_template.train
 ```
+
+### `Prepared data hash does not match its manifest`
+
+The prepared CSV changed after its manifest was written, or the wrong manifest
+was paired with it. Do not edit `training.csv` manually. Rerun preparation from
+the intended immutable raw input and inspect the changed hashes.
 
 ### `Training data is missing columns`
 
@@ -892,6 +964,9 @@ Use this checklist when validating a fresh clone or a generated project:
 - [ ] `python -m pip check` reports no broken requirements.
 - [ ] `python -m ml_project_template.example_data` creates the CSV.
 - [ ] The CSV contains the four configured features and binary target.
+- [ ] `python -m ml_project_template.prepare_data` creates canonical data,
+  profile, and manifest files.
+- [ ] Repeating preparation preserves all three output hashes.
 - [ ] `python -m ml_project_template.train` succeeds.
 - [ ] `models/model.joblib` exists.
 - [ ] `models/metrics.json` exists.
@@ -912,16 +987,16 @@ git status --short --ignored
 
 ## 17. Current limitations and next expansion
 
-Phases 1 through 3 intentionally do not yet provide:
+Phases 1 through 4 intentionally do not yet provide:
 
-- full schema and data-quality validation;
-- data versioning;
+- domain-specific semantic, fairness, privacy, or sensitive-field validation;
+- durable remote storage for non-regenerable datasets;
 - packaged serving artifacts;
 - prediction API or container;
 - monitoring, dashboards, alerts, or drift detection.
 
-Phase 4 should add automated ingestion/preprocessing, stronger data contracts,
-output validation, and durable data provenance/versioning decisions.
+Phase 5 should add a parameterized reproducible training job, validated package
+outputs, retraining CI, immutable model artifact identity, and retention policy.
 
 ---
 
@@ -1071,7 +1146,7 @@ repository secrets.
 
 ### 18.5 Behaviors protected by the suite
 
-The current 49 tests protect:
+The current 66 tests protect:
 
 - authoritative path resolution;
 - environment-based project-root configuration;
@@ -1093,12 +1168,14 @@ The current 49 tests protect:
 - valid notebook JSON and absence of legacy `sys.path` mutation.
 - MLflow run comparison, selection metadata, model signatures, lineage
   artifacts, model-card generation, and failed-gate non-packaging.
+- deterministic preparation, schema failures, content hashes, tamper detection,
+  manifest-aware fitting, and chronological holdout behavior.
 
 ### 18.6 Coverage policy
 
 Pytest is configured to measure both statements and branches in
 `ml_project_template`. The gate requires at least 90% total coverage. The current
-suite achieves approximately 96% branch coverage.
+suite achieves approximately 93% branch coverage.
 
 Coverage is evidence that relevant paths were executed, not proof that assertions
 are meaningful. A new test should protect a behavior or failure mode; do not add
@@ -1210,8 +1287,8 @@ Ruff format: pass
 Ruff lint: pass
 mypy: pass
 Bandit: pass
-pytest: 49 passed
-branch coverage: approximately 96%
+pytest: 66 passed
+branch coverage: approximately 93%
 ```
 
 If test count changes later, the behavioral coverage and passing quality gate
@@ -1249,6 +1326,7 @@ Install the experiment layer and generate the neutral fixture:
 ```powershell
 python -m pip install -e ".[experiment]"
 python -m ml_project_template.example_data
+python -m ml_project_template.prepare_data
 python -m ml_project_template.experiment
 ```
 
@@ -1307,10 +1385,10 @@ The selected run additionally records:
 - inferred model signature and a five-row input example;
 - generated model card.
 
-Reproducibility evidence includes the exact input file's SHA-256, current Git
-revision when available, resolved settings, and a dataset profile. A hash proves
-identity only if the corresponding data bytes remain available; Phase 4 will
-define durable data storage/versioning.
+Reproducibility evidence includes the verified prepared-data reference, raw
+input reference, optional immutable source URI, exact prepared-file SHA-256,
+current Git revision when available, resolved settings, and dataset profile. A
+hash proves identity; the source URI or artifact store must preserve availability.
 
 ### 19.5 Inspect runs locally
 
@@ -1399,7 +1477,166 @@ python -m ml_project_template.predict `
 
 ---
 
-## 20. Related documentation
+## 20. Phase 4 data automation and versioning
+
+### 20.1 Data lifecycle
+
+Phase 4 separates two meanings often hidden behind the word preprocessing:
+
+```text
+raw source
+  -> deterministic preparation (safe before splitting)
+  -> prepared CSV + profile + manifest
+  -> verify content hash
+  -> reserve development/test boundary
+  -> fit learned preprocessing inside the model pipeline on development only
+```
+
+Deterministic preparation may enforce types, trim categorical whitespace,
+canonicalize timestamps, order declared columns, and validate constraints. It
+must not learn medians, category vocabularies, scaling statistics, clipping
+bounds, feature selection, or target-dependent transformations from all rows.
+
+### 20.2 Contract settings
+
+The generic contract exposes these Phase 4 settings:
+
+| Setting | Default | Meaning |
+|---|---:|---|
+| `data_contract_version` | `1` | version of prepared-data semantics |
+| `minimum_rows` | `20` | smallest accepted dataset |
+| `max_category_cardinality` | `100` | per-categorical-feature safety limit |
+| `allow_extra_columns` | `False` | reject undeclared columns by default |
+| `split_strategy` | `random` | `random` or `time` |
+| `time_column` | `None` | required separate timestamp for `time` |
+
+For a real project, extend the contract with domain ranges, permitted category
+sets, uniqueness rules, sensitive-field exclusions, and feature-availability
+checks. A generic template cannot infer those safely.
+
+### 20.3 Prepared artifacts
+
+`training.csv` is the canonical declared dataset. `profile.json` records row and
+column counts, order, dtypes, null counts, numeric summaries, categorical
+cardinality, and target distribution. `manifest.json` records:
+
+- contract snapshot and version;
+- preparation implementation and Git revision;
+- raw input path, SHA-256, immutable hash reference, and optional source URI;
+- prepared output path, SHA-256, and immutable hash reference;
+- profile path and SHA-256.
+
+The manifest contains no wall-clock timestamp, so the same input, settings, and
+code revision reproduce identical evidence bytes.
+
+### 20.4 Real source references
+
+For local or generated data, `sha256:<digest>` is the immutable identity. For
+remote data, also pass a source URI that cannot silently change, for example:
+
+- an object-store URI with a version ID;
+- a warehouse snapshot/table version;
+- a dataset release ID;
+- a DVC content revision.
+
+Avoid a mutable reference such as `s3://bucket/latest.csv` by itself. A hash can
+detect a change, but it cannot recover bytes that were never retained.
+
+### 20.5 Why DVC is not installed by default
+
+The included dataset is tiny, deterministic, and regenerable. Adding DVC and a
+remote solely for this fixture would create configuration without solving a
+real storage problem. The default therefore uses Git for code/configuration,
+SHA manifests for identity, and GitHub Actions artifacts for short-lived CI
+evidence.
+
+Add DVC or versioned object storage when one or more are true:
+
+- datasets are too large for normal artifacts;
+- raw data cannot be regenerated;
+- multiple people or jobs must retrieve exact versions;
+- retention, access control, audit, or rollback requirements exceed CI artifact
+  lifetimes;
+- dataset versions must be promoted independently from code.
+
+Whichever system is chosen, place its immutable URI/version in `--source-uri`
+and preserve the manifest beside model evidence.
+
+### 20.6 Random versus temporal splitting
+
+The default stratified random strategy is appropriate only when rows are
+independent and exchangeable. Configure time-aware evaluation in project code:
+
+```python
+from pathlib import Path
+
+from ml_project_template.config import Settings
+
+settings = Settings(
+    project_root=Path.cwd(),
+    split_strategy="time",
+    time_column="event_time",
+)
+```
+
+Preparation requires parseable, non-missing timestamps and canonicalizes them
+to UTC. Evaluation sorts stably by time, reserves the newest fraction as final
+test data, and uses forward-only `TimeSeriesSplit` during experiment selection.
+Both development and final test partitions must contain both target classes.
+
+Do not use temporal splitting merely because a timestamp exists. Use it when
+the real prediction task trains on history and predicts future observations.
+Group-aware splitting is still a project-specific extension when entities must
+not cross partitions.
+
+### 20.7 Data CI workflow
+
+`.github/workflows/data-pipeline.yml` runs manually and when the preparation
+contract or implementation changes. It:
+
+1. installs only the core package;
+2. generates the deterministic neutral raw fixture;
+3. runs the same `prepare_data` module used locally;
+4. verifies the manifest hash;
+5. uploads `training.csv`, `profile.json`, and `manifest.json` as
+   `prepared-data-<commit SHA>` for 14 days.
+
+Generated data is uploaded, not committed. For a private real source, replace
+the fixture-generation step with authorized ingestion and review fork/secret
+security before enabling pull-request access.
+
+### 20.8 Verify Phase 4 locally
+
+Run preparation twice and compare hashes:
+
+```powershell
+python -m ml_project_template.example_data
+python -m ml_project_template.prepare_data
+Get-FileHash data/processed/training.csv -Algorithm SHA256
+Get-FileHash data/processed/profile.json -Algorithm SHA256
+Get-FileHash data/processed/manifest.json -Algorithm SHA256
+python -m ml_project_template.prepare_data
+Get-FileHash data/processed/training.csv -Algorithm SHA256
+Get-FileHash data/processed/profile.json -Algorithm SHA256
+Get-FileHash data/processed/manifest.json -Algorithm SHA256
+```
+
+Each before/after pair should match. Then run training or the Phase 3 experiment
+and inspect `data_reference` in `models/metrics.json` and the MLflow run.
+
+Run every automated contract:
+
+```powershell
+PowerShell -NoProfile -ExecutionPolicy Bypass -File scripts/check.ps1
+```
+
+The suite covers malformed schema/value cases, repeatability, manifest tampering,
+failure before fitting, random and chronological holdouts, MLflow lineage, and
+the complete raw-to-prediction workflow.
+
+---
+
+## 21. Related documentation
 
 - `README.md` — orientation and quick start
 - `docs/current-state-assessment.md` — what is good, resolved, partial, or missing

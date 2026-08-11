@@ -11,6 +11,10 @@ def test_settings_resolve_authoritative_paths(tmp_path: Path) -> None:
     settings = Settings(project_root=tmp_path)
 
     assert settings.raw_data_path == tmp_path.resolve() / "data" / "raw" / "example.csv"
+    assert settings.prepared_data_path == tmp_path.resolve() / "data" / "processed" / "training.csv"
+    expected_processed = tmp_path.resolve() / "data" / "processed"
+    assert settings.data_manifest_path == expected_processed / "manifest.json"
+    assert settings.data_profile_path == tmp_path.resolve() / "data" / "processed" / "profile.json"
     assert settings.model_artifact_path == tmp_path.resolve() / "models" / "model.joblib"
     assert settings.metrics_path == tmp_path.resolve() / "models" / "metrics.json"
     assert settings.feature_columns == (
@@ -76,6 +80,25 @@ def test_settings_reject_invalid_quality_gate(tmp_path: Path, threshold: float) 
 def test_settings_reject_unsupported_selection_metric(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="selection_metric='f1'"):
         Settings(project_root=tmp_path, selection_metric="accuracy")
+
+
+@pytest.mark.parametrize(
+    ("overrides", "message"),
+    [
+        ({"minimum_rows": 1}, "minimum_rows"),
+        ({"max_category_cardinality": 1}, "max_category_cardinality"),
+        ({"split_strategy": "group"}, "split_strategy"),
+        ({"split_strategy": "time"}, "time_column"),
+        ({"time_column": "target"}, "separate"),
+    ],
+)
+def test_settings_reject_invalid_data_contract_options(
+    tmp_path: Path,
+    overrides: dict[str, object],
+    message: str,
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        Settings(project_root=tmp_path, **overrides)  # type: ignore[arg-type]
 
 
 def test_settings_resolve_tracking_and_model_card_paths(

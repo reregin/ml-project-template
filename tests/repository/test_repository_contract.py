@@ -45,3 +45,16 @@ def test_data_workflow_uses_shared_command_and_artifact_upload() -> None:
     assert "verify_data_manifest" in workflow
     assert "actions/upload-artifact@v4" in workflow
     assert "git commit" not in workflow
+
+
+def test_package_workflow_uses_shared_sha_addressed_build_without_publishing() -> None:
+    workflow = (PROJECT_ROOT / ".github" / "workflows" / "train-package.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "python -m ml_project_template.model_package" in workflow
+    assert "ml-template-validate-package" in workflow
+    assert "model-package-${{ github.sha }}" in workflow
+    assert "actions/upload-artifact@v4" in workflow
+    assert "docker push" not in workflow
+    assert "packages: write" not in workflow

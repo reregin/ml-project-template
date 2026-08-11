@@ -106,6 +106,10 @@ class Settings:
         return self.project_root / "models" / "model-card.md"
 
     @property
+    def model_package_root(self) -> Path:
+        return self.project_root / "artifacts" / "model-packages"
+
+    @property
     def tracking_uri(self) -> str:
         configured_uri = os.getenv("MLFLOW_TRACKING_URI")
         if configured_uri:

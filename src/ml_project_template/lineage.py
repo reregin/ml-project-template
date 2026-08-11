@@ -36,6 +36,21 @@ def git_revision(project_root: Path) -> str:
     return result.stdout.strip() if result.returncode == 0 else "unavailable"
 
 
+def git_worktree_is_dirty(project_root: Path) -> bool | None:
+    """Report uncommitted changes, or None when the path is not a Git worktree."""
+
+    result = subprocess.run(  # nosec B603 B607
+        ["git", "status", "--porcelain"],
+        cwd=project_root,
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+    if result.returncode != 0:
+        return None
+    return bool(result.stdout.strip())
+
+
 def read_data_manifest(path: Path) -> dict[str, Any]:
     """Read a preparation manifest and validate its minimum structure."""
 

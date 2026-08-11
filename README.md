@@ -16,6 +16,8 @@ The repository is intentionally layered:
 Phase 1 established the reliable core, Phase 2 protects it with automated
 quality checks, Phase 3 adds evidence-based model comparison with MLflow, and
 Phase 4 adds deterministic data preparation with validated lineage.
+Phase 5 turns the selected model into a validated, commit-addressable package
+using the same entry point locally and in CI.
 This is not yet the complete MLOps template; see
 [the extension plan](docs/project-extension-plan.md).
 
@@ -102,6 +104,18 @@ Then open `http://127.0.0.1:5000`. If the repository is elsewhere, replace the
 absolute database path. See the handbook for remote tracking and quality-gate
 configuration.
 
+Build the complete Phase 5 model package. A clean committed revision becomes
+the default version; `--version` is useful for an explicit local label:
+
+```powershell
+python -m ml_project_template.model_package --version local-check
+ml-template-validate-package --package artifacts/model-packages/local-check
+```
+
+The bundle includes a standard MLflow Model, compatibility joblib model,
+metrics, model card, inference request, data/configuration evidence, and a
+SHA-256 inventory. Existing version directories are never overwritten.
+
 Predict from one raw record. The committed request deliberately includes a
 category that was not present during training:
 
@@ -154,7 +168,7 @@ Run the complete local quality gate on Windows:
 PowerShell -NoProfile -ExecutionPolicy Bypass -File scripts/check.ps1
 ```
 
-The gate checks formatting, lint, types, common security issues, 66 behavioral
+The gate checks formatting, lint, types, common security issues, 76 behavioral
 tests, and a 90% minimum branch-coverage threshold. GitHub Actions runs the same
 checks on Python 3.10 and 3.12 for pushes and pull requests.
 
@@ -183,6 +197,7 @@ checks on Python 3.10 and 3.12 for pushes and pull requests.
 │       ├── evaluation.py             # splits, metrics, and diagnostics
 │       ├── experiment.py             # MLflow comparison, selection, and gate
 │       ├── model_card.py              # generated evidence summary
+│       ├── model_package.py           # immutable build and validation contract
 │       ├── pipeline.py               # preprocessing + estimator builder
 │       ├── prepare_data.py            # idempotent raw-to-prepared CLI
 │       ├── lineage.py                 # content hashes and manifest verification
@@ -223,6 +238,5 @@ for a real use case.
 
 The following belong to later extension phases:
 
-- reproducible training jobs and immutable packaged artifacts;
 - typed serving API and containers;
 - Prometheus, Grafana, alerts, drift, and operations documentation.

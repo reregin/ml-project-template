@@ -19,7 +19,7 @@ production-ready system.
 ## 2. Honest summary
 
 The current repository is a **useful tabular data-science starter with a tested
-Phase 4 data-and-experiment core**. Its strongest ideas are separation of
+Phase 5 reproducible model-build core**. Its strongest ideas are separation of
 experimentation from reusable code, a split-first leakage policy, structured
 data directories, an installable package, and one raw-input-to-prediction
 pipeline artifact.
@@ -32,15 +32,18 @@ development-only selection, final-test isolation, run lineage, signatures,
 diagnostics, model cards, and a packaging quality gate. Phase 4 now adds a
 versioned data contract, deterministic preparation, profiles, content-addressed
 lineage, manifest verification, temporal split support, and path-filtered data
-CI. Serving, deployment, and operations remain later phases.
+CI. Phase 5 now adds a shared local/CI package command, standard MLflow Model
+bundle, commit-addressed identity, complete output validation, atomic
+publication, and retained CI artifacts. Serving, deployment, and operations
+remain later phases.
 
 Current maturity by track:
 
 | Track | Current status | Explanation |
 |---|---|---|
 | DS experimentation | Good foundation | Ordered notebooks, data layout, EDA prompts, split-first intent, preprocessing and training scaffolding exist. |
-| ML engineering | Validated Phase 4 baseline | The complete pipeline is protected by 66 tests and 93% branch coverage; prepared data is contract-checked, content-addressed, and verified before fitting, while runs retain comparison and model evidence. |
-| MLOps | Data/experiment foundation | Data CI, experiment tracking, and a packaging gate exist, but there is no retraining CI, immutable model release, container, service API, monitoring stack, alerting, or release workflow. |
+| ML engineering | Packaged Phase 5 baseline | The lifecycle is protected by 76 tests and at least 90% branch coverage; prepared data is verified before fitting and the selected model becomes a validated MLflow-compatible evidence bundle. |
+| MLOps | Reproducible build foundation | Data CI, experiment tracking, model-quality gates, and SHA-addressed package CI exist, but there is no container, service API, registry promotion, monitoring stack, alerting, or deployment workflow. |
 
 The right strategy is to preserve this now-working baseline and add tests,
 experimentation, automation, and optional MLOps layers in order.
@@ -100,7 +103,9 @@ preprocessing fitted on the training split only
    ↓
 one sklearn Pipeline containing preprocessing + estimator
    ↓
-models/model.joblib + metrics.json
+quality-gated MLflow Model + metrics/card/request/config/data evidence
+   ↓
+immutable artifacts/model-packages/<commit SHA>/ bundle
    ↓
 raw JSON inference → optional Streamlit application
 ```
@@ -401,8 +406,9 @@ configuration, dataset profile, selection evidence, final diagnostics, and the
 complete selected pipeline. The deployable MLflow model has a signature and
 input example. SQLite provides local run tracking, not model promotion.
 
-Phase 5 still needs a reproducible training job, immutable artifact identity,
-retraining CI, and an explicit promotion/release policy.
+Phase 5 now provides reproducible training/package execution, immutable artifact
+identity, and retained CI bundles. A long-lived registry and explicit
+promotion/release policy remain later deployment decisions.
 
 ### 4.11 A separate application boundary
 
@@ -606,9 +612,9 @@ artifact contract.
 | **Completed:** model card | Records intended use, limitations, and evidence | Phase 3 |
 | **Completed:** automated data pipeline | Converts stable non-learned preparation into repeatable execution | Phase 4 |
 | **Partial:** data version/provenance strategy | SHA manifests and CI artifacts cover the fixture; real durable storage remains project-specific | Phase 4 |
-| Parameterized reproducible training job | Makes local and CI execution identical | Phase 5 |
-| Retraining workflow and artifact retention | Produces traceable model versions | Phase 5 |
-| Immutable artifact/image tags | Enables exact deployment and rollback | Phase 5 |
+| **Completed:** parameterized reproducible training job | Makes local and CI execution identical | Phase 5 |
+| **Completed:** retraining workflow and artifact retention | Produces downloadable traceable model versions | Phase 5 |
+| **Partial:** immutable artifact/image tags | Model bundles use commit SHA; container image identity follows in Phase 6 | Phases 5 and 6 |
 | Typed prediction API | Establishes a stable service boundary | Phase 6 |
 | Liveness/readiness and health checks | Distinguishes process health from model readiness | Phase 6 |
 | Container build and Compose example | Makes the serving environment reproducible | Phase 6 |
@@ -637,6 +643,7 @@ The detailed entries below preserve the assessment of the original files. Phase
 | `src/ml_project_template/example_data.py` | deterministic, domain-neutral smoke-test dataset |
 | `src/ml_project_template/pipeline.py` | one raw-input preprocessing and estimator pipeline |
 | `src/ml_project_template/train.py` | split-first fitting, evaluation, and authoritative artifact writing |
+| `src/ml_project_template/model_package.py` | immutable bundle assembly, integrity validation, and smoke inference |
 | `src/ml_project_template/predict.py` | raw-record validation, artifact loading, and prediction |
 | `examples/binary_classification/sample_request.json` | portable inference smoke request with an unseen category |
 | `app/main.py` | optional generic Streamlit client |
@@ -811,7 +818,7 @@ Some ideas are easy to confuse; these distinctions should guide future changes:
 
 ## 10. What can reasonably be used today
 
-After Phase 4, the repository can be used safely as:
+After Phase 5, the repository can be used safely as:
 
 - a reference layout for a small tabular DS project;
 - a checklist for leakage-aware EDA and preprocessing;
@@ -828,6 +835,9 @@ After Phase 4, the repository can be used safely as:
 - an idempotent, schema-validated raw-to-prepared data example with tamper-evident
   manifests and deterministic profiles;
 - a teaching example for stratified random or forward-only temporal evaluation.
+- a reproducible local/CI model-build example producing a validated,
+  commit-addressable MLflow Model bundle;
+- a demonstration that failed builds never become final package directories.
 
 It should not yet be trusted unchanged as:
 
@@ -851,12 +861,12 @@ Recommended reading order for a future session:
 1. read this document to understand what exists and why;
 2. read Sections 1–6 of `project-extension-plan.md` for target principles and
    contracts;
-3. continue sequentially with Phase 5 after reviewing the Phase 4 baseline;
+3. continue sequentially with Phase 6 after reviewing the Phase 5 baseline;
 4. update this assessment as milestones are completed so it does not become a
    stale description of the repository.
 
 Phase 1 proved one clean raw-input-to-prediction path, Phase 2 continuously
 enforces it through tests and CI, Phase 3 makes model comparison an explicit
-evidence trail, and Phase 4 connects that evidence to validated prepared data.
-The next goal is Phase 5 reproducible training and immutable model packaging—not
-jumping directly to Docker or Grafana.
+evidence trail, Phase 4 connects that evidence to validated prepared data, and
+Phase 5 turns the selected result into an immutable validated package. The next
+goal is Phase 6 serving and containerization—not jumping directly to Grafana.

@@ -9,7 +9,8 @@ real project, and how to diagnose common failures.
 
 The handbook will grow with the implementation phases. It currently documents
 the completed **Phase 1 core**, **Phase 2 quality layer**, **Phase 3
-experiment-management layer**, and **Phase 4 data layer**:
+experiment-management layer**, **Phase 4 data layer**, and **Phase 5 model-build
+layer**:
 
 - installable Python package;
 - deterministic, domain-neutral example data;
@@ -22,17 +23,19 @@ experiment-management layer**, and **Phase 4 data layer**:
 - unit, integration, and repository-contract tests;
 - branch coverage, formatting, linting, typing, and security scanning;
 - a one-command local quality gate;
-- least-privilege GitHub Actions CI on Python 3.10 and 3.12.
+- least-privilege GitHub Actions CI on Python 3.10 and 3.12;
 - MLflow baseline/tuned comparison, lineage, diagnostics, and signatures;
 - development-only model selection and an untouched final test set;
-- a packaging quality gate and generated model card.
+- a packaging quality gate and generated model card;
 - an idempotent data-preparation CLI with schema and output validation;
 - deterministic profiles and content-addressed lineage manifests;
 - random and forward-only temporal split policies;
-- path-filtered data CI with generated artifact upload.
+- path-filtered data CI with generated artifact upload;
+- one shared local/CI training-package command;
+- validated MLflow Model bundles with commit-SHA identity and retention.
 
-Later editions will add reproducible training/release packaging, serving,
-monitoring, and release workflows.
+Later editions will add serving, monitoring, deployment, and release-promotion
+workflows.
 
 ---
 
@@ -129,6 +132,7 @@ ml-project-template/
 | `example_data.py` | Reproducible synthetic dataset generator |
 | `pipeline.py` | Preprocessing plus baseline estimator construction |
 | `train.py` | Authoritative training and artifact-writing command |
+| `model_package.py` | Immutable model-bundle build and independent validation |
 | `predict.py` | Authoritative model loading and raw-record prediction |
 | `sample_request.json` | Known-valid inference request, including an unseen category |
 | `app/main.py` | Optional Streamlit client of the prediction function |
@@ -987,16 +991,16 @@ git status --short --ignored
 
 ## 17. Current limitations and next expansion
 
-Phases 1 through 4 intentionally do not yet provide:
+Phases 1 through 5 intentionally do not yet provide:
 
 - domain-specific semantic, fairness, privacy, or sensitive-field validation;
 - durable remote storage for non-regenerable datasets;
-- packaged serving artifacts;
+- a long-lived model registry or promotion environment;
 - prediction API or container;
 - monitoring, dashboards, alerts, or drift detection.
 
-Phase 5 should add a parameterized reproducible training job, validated package
-outputs, retraining CI, immutable model artifact identity, and retention policy.
+Phase 6 should serve the exact Phase 5 MLflow Model through a typed API and
+non-root container with health checks and contract smoke tests.
 
 ---
 
@@ -1146,7 +1150,7 @@ repository secrets.
 
 ### 18.5 Behaviors protected by the suite
 
-The current 66 tests protect:
+The current 76 tests protect:
 
 - authoritative path resolution;
 - environment-based project-root configuration;
@@ -1170,12 +1174,14 @@ The current 66 tests protect:
   artifacts, model-card generation, and failed-gate non-packaging.
 - deterministic preparation, schema failures, content hashes, tamper detection,
   manifest-aware fitting, and chronological holdout behavior.
+- immutable package naming, complete inventories, file integrity, dual-format
+  inference, required MLflow metadata, and failed-build cleanup.
 
 ### 18.6 Coverage policy
 
 Pytest is configured to measure both statements and branches in
 `ml_project_template`. The gate requires at least 90% total coverage. The current
-suite achieves approximately 93% branch coverage.
+suite remains at or above the required 90% branch-coverage threshold.
 
 Coverage is evidence that relevant paths were executed, not proof that assertions
 are meaningful. A new test should protect a behavior or failure mode; do not add
@@ -1287,8 +1293,8 @@ Ruff format: pass
 Ruff lint: pass
 mypy: pass
 Bandit: pass
-pytest: 66 passed
-branch coverage: approximately 93%
+pytest: 76 passed
+branch coverage: at least 90%
 ```
 
 If test count changes later, the behavioral coverage and passing quality gate
@@ -1636,7 +1642,162 @@ the complete raw-to-prediction workflow.
 
 ---
 
-## 21. Related documentation
+## 21. Phase 5 reproducible training and packaging
+
+### 21.1 What Phase 5 guarantees
+
+Phase 4 proves which data entered the process. Phase 5 proves which complete
+model bundle came out and whether another machine can consume it:
+
+```text
+verified prepared data + manifest + code/config
+  -> shared experiment/quality-gate entry point
+  -> selected fitted pipeline
+  -> MLflow Model + consumer/evidence files
+  -> inventory, hash, metadata, and inference validation
+  -> atomic artifacts/model-packages/<version>/ publication
+```
+
+The final version directory appears only after every check passes. A failure
+during training, quality gating, assembly, hashing, or smoke inference leaves no
+partially published package.
+
+### 21.2 Build locally
+
+Install the experiment layer, prepare data, and build:
+
+```powershell
+python -m pip install -e ".[experiment]"
+python -m ml_project_template.example_data
+python -m ml_project_template.prepare_data
+python -m ml_project_template.model_package --version local-check
+```
+
+Equivalent installed command:
+
+```powershell
+ml-template-package-model --version local-check
+```
+
+Without `--version`, the builder uses `GITHUB_SHA`, then the current Git commit,
+then `local` when no repository identity exists. Versions permit letters,
+digits, periods, underscores, and hyphens only. Once a version directory exists,
+the command refuses to overwrite it; use a genuinely new identity.
+
+An implicit Git-commit version is refused when tracked files are dirty because
+that commit would not describe the executing code. Commit the work first, or use
+an explicit clearly local version while iterating. The package manifest records
+whether the source worktree was dirty.
+
+### 21.3 Package contents
+
+```text
+artifacts/model-packages/<version>/
+├── model/                       # standard MLflow Model + pinned environment
+│   ├── MLmodel
+│   ├── input_example.json
+│   ├── model.pkl
+│   ├── python_env.yaml
+│   └── requirements.txt
+├── model.joblib                 # compatibility with current prediction CLI
+├── metrics.json                 # selection, test gate, run, code, and data IDs
+├── model-card.md
+├── inference-request.json       # validated raw request fixture
+├── data-manifest.json
+├── data-profile.json
+├── resolved-config.json
+└── package-manifest.json        # identity and SHA-256/size inventory
+```
+
+MLflow may add other standard environment files under `model/`; the package
+manifest inventories them too. Model-card inputs are preserved through metrics,
+data evidence, and resolved configuration rather than requiring hidden MLflow
+state.
+
+### 21.4 Validate independently
+
+```powershell
+ml-template-validate-package `
+  --package artifacts/model-packages/local-check
+```
+
+Validation fails when:
+
+- a required file is absent or an unexpected file appears;
+- any byte size or SHA-256 differs from the manifest;
+- metrics do not show a passed quality gate;
+- metrics and package metadata disagree on data identity;
+- the MLflow Model lacks its signature or input example;
+- the committed inference request fails through either the joblib or MLflow
+  model format.
+
+Validation checks hashes before loading serialized models. Nevertheless,
+pickle/joblib/cloudpickle artifacts can execute code while loading; consume only
+packages produced by a trusted workflow and stored in an access-controlled
+artifact system.
+
+### 21.5 Why an equivalent task runner instead of `MLproject`
+
+The package command is the single task runner used locally and in CI.
+`pyproject.toml` already defines the package and dependency groups, while the
+exported MLflow Model captures its serving environment. Adding an `MLproject`
+plus a second Conda definition now would duplicate dependency authority without
+changing the execution contract.
+
+A real organization may wrap this command with a platform-native orchestrator,
+but the wrapper should invoke this entry point rather than reimplement training.
+
+### 21.6 Training/package CI
+
+`.github/workflows/train-package.yml` runs on manual dispatch, relevant pull
+requests, and relevant pushes to `main`. It:
+
+1. installs the same package experiment group;
+2. generates and prepares the deterministic fixture;
+3. calls `python -m ml_project_template.model_package` with the full commit SHA;
+4. calls the independent validator;
+5. uploads `model-package-<commit SHA>` for 30 days.
+
+Concurrency cancellation prevents older builds for the same ref from wasting
+resources. Workflow permissions are read-only. Pull requests may build and
+upload temporary workflow artifacts for verification, but the workflow contains
+no Docker/registry publishing and has no package-write permission.
+
+This artifact retention is enough to prove the template. A real production
+system normally promotes the validated directory to long-lived object storage
+or a model registry under an explicit environment approval policy.
+
+### 21.7 Download and consume a CI package
+
+In GitHub, open the successful **Train and package model** workflow run and
+download the artifact named `model-package-<full commit SHA>`. After extraction,
+run the validator before serving or promotion.
+
+The `model/` directory is the Phase 6 serving input. Deployment must download a
+specific versioned bundle; it must not retrain from mutable data as part of
+service startup.
+
+### 21.8 Verify Phase 5
+
+Run the full local quality gate:
+
+```powershell
+PowerShell -NoProfile -ExecutionPolicy Bypass -File scripts/check.ps1
+```
+
+Then perform the build and validation commands above. Confirm that:
+
+- the package directory name equals the requested version or commit SHA;
+- `package-manifest.json` lists every non-manifest file;
+- `model/MLmodel` contains a signature and input-example reference;
+- `metrics.json` reports `quality_gate_passed: true` and the Phase 4 data
+  reference;
+- rebuilding the same version fails rather than overwriting it;
+- modifying a copied file makes validation fail.
+
+---
+
+## 22. Related documentation
 
 - `README.md` — orientation and quick start
 - `docs/current-state-assessment.md` — what is good, resolved, partial, or missing

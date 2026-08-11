@@ -706,6 +706,13 @@ Learning focus: repeatability, lineage, and leakage boundaries.
 
 ### Phase 5 — Reproducible training and packaging
 
+**Status: completed and locally verified on 2026-08-11.** One package command
+now runs the authoritative Phase 3 experiment against Phase 4 data evidence,
+exports the selected pipeline as a standard MLflow Model, assembles every
+required consumer/evidence file, validates hashes and live inference, and only
+then atomically publishes an immutable version directory. GitHub Actions calls
+that same command and uploads a commit-SHA-named bundle.
+
 Tasks:
 
 - add a parameterized MLflow Project or equivalent task runner;
@@ -722,6 +729,30 @@ Acceptance criteria:
 - output validation fails a broken run;
 - a SHA-addressable artifact can be downloaded and served;
 - pull requests never publish release images.
+
+Implemented evidence and decisions:
+
+- `model_package.py` is the equivalent task runner; `pyproject.toml` remains the
+  sole dependency definition instead of duplicating it in an `MLproject` Conda
+  environment;
+- each package contains `model/MLmodel` and its captured environment,
+  `model.joblib`, `metrics.json`, `model-card.md`, `inference-request.json`, data
+  manifest/profile, resolved configuration, and `package-manifest.json`;
+- the package manifest records artifact version, code revision, data reference,
+  selected MLflow run/model URI, and SHA-256 plus size for every file;
+- validation checks the complete inventory, hashes, passed quality gate, data
+  identity, MLflow signature/input example, and inference through both the
+  compatibility and MLflow model formats;
+- packages publish atomically and an existing version cannot be overwritten;
+  failed training, gates, validation, or interrupted staging leave no final
+  package;
+- `.github/workflows/train-package.yml` runs on relevant pull requests, main
+  pushes, or manual dispatch, uses the shared package entry point, applies
+  concurrency cancellation, and retains `model-package-<commit SHA>` for 30
+  days;
+- no container/registry publication exists yet. The workflow has read-only
+  repository permissions and cannot publish release images from pull requests;
+  conditional registry publication belongs with the Phase 6 container design.
 
 Learning focus: CI proves reproducibility; it is not merely a remote shell.
 

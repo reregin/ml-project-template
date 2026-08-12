@@ -138,7 +138,7 @@ jobs:
         run: docker rm --force prediction-api || true
 
       - name: Upload immutable model package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: model-package-${{ github.sha }}
           path: artifacts/model-packages/${{ github.sha }}
@@ -146,7 +146,7 @@ jobs:
           retention-days: 30
 
       - name: Upload serving-image SBOM
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: serving-image-sbom-${{ github.sha }}
           path: serving-image.sbom.cdx.json

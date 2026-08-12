@@ -19,7 +19,7 @@ production-ready system.
 ## 2. Honest summary
 
 The current repository is a **useful tabular data-science starter with a tested
-Phase 5 reproducible model-build core**. Its strongest ideas are separation of
+Phase 6 serving core**. Its strongest ideas are separation of
 experimentation from reusable code, a split-first leakage policy, structured
 data directories, an installable package, and one raw-input-to-prediction
 pipeline artifact.
@@ -34,16 +34,18 @@ versioned data contract, deterministic preparation, profiles, content-addressed
 lineage, manifest verification, temporal split support, and path-filtered data
 CI. Phase 5 now adds a shared local/CI package command, standard MLflow Model
 bundle, commit-addressed identity, complete output validation, atomic
-publication, and retained CI artifacts. Serving, deployment, and operations
-remain later phases.
+publication, and retained CI artifacts. Phase 6 adds a typed prediction API,
+separate liveness/readiness behavior, stable errors, package metadata, hardened
+container/Compose wiring, and CI smoke/parity checks. Metrics, deployment,
+promotion, and operations remain later phases.
 
 Current maturity by track:
 
 | Track | Current status | Explanation |
 |---|---|---|
 | DS experimentation | Good foundation | Ordered notebooks, data layout, EDA prompts, split-first intent, preprocessing and training scaffolding exist. |
-| ML engineering | Packaged Phase 5 baseline | The lifecycle is protected by 76 tests and at least 90% branch coverage; prepared data is verified before fitting and the selected model becomes a validated MLflow-compatible evidence bundle. |
-| MLOps | Reproducible build foundation | Data CI, experiment tracking, model-quality gates, and SHA-addressed package CI exist, but there is no container, service API, registry promotion, monitoring stack, alerting, or deployment workflow. |
+| ML engineering | Served Phase 6 baseline | The lifecycle is protected by 83 tests and at least 90% branch coverage; the validated MLflow-compatible evidence bundle is consumed through one typed service. |
+| MLOps | Containerized serving foundation | Data/package CI, experiment tracking, quality gates, service contracts, and hardened container smoke checks exist; registry promotion, monitoring, alerting, and deployment workflows remain. |
 
 The right strategy is to preserve this now-working baseline and add tests,
 experimentation, automation, and optional MLOps layers in order.
@@ -420,8 +422,8 @@ the request path.
 
 The previous CreditGuard-specific form has been replaced with neutral numeric
 and categorical fields. It deliberately includes an unseen-category option to
-exercise the saved encoder. The UI remains an optional client; Phase 6 will
-define a proper serving contract.
+exercise the saved encoder. The UI remains an optional client; Phase 6 now
+provides the proper typed serving contract for network consumers.
 
 ### 4.12 One authoritative fitted artifact
 
@@ -432,9 +434,9 @@ estimator to `models/model.joblib`. Prediction loads that exact path, validates
 required raw fields, and calls the pipeline directly. This repairs the original
 training-serving mismatch.
 
-Model caching, concurrency, version reporting, reloads, startup failure, and
-readiness belong to the serving layer in Phase 6 rather than this command-line
-baseline.
+Phase 6 now loads one validated package per process, reports its version, and
+keeps failed model loading visible through readiness. Hot reload and
+production-specific autoscaling remain explicit platform decisions.
 
 ---
 
@@ -614,11 +616,11 @@ artifact contract.
 | **Partial:** data version/provenance strategy | SHA manifests and CI artifacts cover the fixture; real durable storage remains project-specific | Phase 4 |
 | **Completed:** parameterized reproducible training job | Makes local and CI execution identical | Phase 5 |
 | **Completed:** retraining workflow and artifact retention | Produces downloadable traceable model versions | Phase 5 |
-| **Partial:** immutable artifact/image tags | Model bundles use commit SHA; container image identity follows in Phase 6 | Phases 5 and 6 |
-| Typed prediction API | Establishes a stable service boundary | Phase 6 |
-| Liveness/readiness and health checks | Distinguishes process health from model readiness | Phase 6 |
-| Container build and Compose example | Makes the serving environment reproducible | Phase 6 |
-| Load/smoke scenarios | Exercises normal, burst, invalid, and failure behavior | Phase 6 |
+| **Partial:** immutable artifact/image tags | Model bundles and CI smoke images use commit SHA; registry publication remains deployment-specific | Phases 5 and 6 |
+| **Completed:** typed prediction API | Establishes a stable service boundary | Phase 6 |
+| **Completed:** liveness/readiness and health checks | Distinguishes process health from model readiness | Phase 6 |
+| **Completed:** container build and Compose example | Makes the serving environment reproducible | Phase 6 |
+| **Completed:** load/smoke scenarios | Exercises normal, burst, invalid, and failure behavior | Phase 6 |
 | Service metrics | Measures request rate, errors, duration, and availability | Phase 7 |
 | Provisioned dashboards | Makes observations reproducible | Phase 7 |
 | Tested alerts and runbooks | Turns signals into operational action | Phase 7 |
@@ -818,7 +820,7 @@ Some ideas are easy to confuse; these distinctions should guide future changes:
 
 ## 10. What can reasonably be used today
 
-After Phase 5, the repository can be used safely as:
+After Phase 6, the repository can be used safely as:
 
 - a reference layout for a small tabular DS project;
 - a checklist for leakage-aware EDA and preprocessing;
@@ -838,13 +840,18 @@ After Phase 5, the repository can be used safely as:
 - a reproducible local/CI model-build example producing a validated,
   commit-addressable MLflow Model bundle;
 - a demonstration that failed builds never become final package directories.
+- a typed local prediction service with stable validation and availability
+  contracts;
+- a non-root, read-only container example that mounts an exact package version;
+- a CI example that compares direct MLflow and HTTP predictions before retaining
+  the package.
 
 It should not yet be trusted unchanged as:
 
 - a general regression, multiclass, time-series, NLP, or vision template;
 - a complete schema-validation framework;
 - a centrally governed experiment registry or promotion system;
-- a production deployment template;
+- a production deployment or registry-promotion template;
 - an automated retraining system;
 - a monitored or self-operating ML service.
 
@@ -861,12 +868,13 @@ Recommended reading order for a future session:
 1. read this document to understand what exists and why;
 2. read Sections 1–6 of `project-extension-plan.md` for target principles and
    contracts;
-3. continue sequentially with Phase 6 after reviewing the Phase 5 baseline;
+3. continue sequentially with Phase 7 after reviewing the Phase 6 baseline;
 4. update this assessment as milestones are completed so it does not become a
    stale description of the repository.
 
 Phase 1 proved one clean raw-input-to-prediction path, Phase 2 continuously
 enforces it through tests and CI, Phase 3 makes model comparison an explicit
 evidence trail, Phase 4 connects that evidence to validated prepared data, and
-Phase 5 turns the selected result into an immutable validated package. The next
-goal is Phase 6 serving and containerization—not jumping directly to Grafana.
+Phase 5 turns the selected result into an immutable validated package. Phase 6
+turns that package into a typed, containerized network service. The next goal is
+Phase 7 monitoring, dashboards, alerts, and operational guidance.

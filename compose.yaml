@@ -1,0 +1,26 @@
+name: ml-project-template
+
+services:
+  prediction-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ml-project-template-api:${IMAGE_TAG:-local}
+    environment:
+      MODEL_PACKAGE_PATH: /opt/model-package
+      MAX_REQUEST_BYTES: ${MAX_REQUEST_BYTES:-16384}
+    volumes:
+      - type: bind
+        source: ${MODEL_PACKAGE_HOST_PATH:?Set MODEL_PACKAGE_HOST_PATH to a Phase 5 package}
+        target: /opt/model-package
+        read_only: true
+    ports:
+      - "${API_PORT:-8000}:8000"
+    read_only: true
+    tmpfs:
+      - /tmp:size=128m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: "no"

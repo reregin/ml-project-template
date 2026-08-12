@@ -56,5 +56,24 @@ def test_package_workflow_uses_shared_sha_addressed_build_without_publishing() -
     assert "ml-template-validate-package" in workflow
     assert "model-package-${{ github.sha }}" in workflow
     assert "actions/upload-artifact@v4" in workflow
+    assert "docker build" in workflow
+    assert "smoke_service.py --mode invalid" in workflow
+    assert "compare_service_prediction.py" in workflow
     assert "docker push" not in workflow
     assert "packages: write" not in workflow
+
+
+def test_container_contract_is_non_root_read_only_and_model_external() -> None:
+    dockerfile = (PROJECT_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    compose = (PROJECT_ROOT / "compose.yaml").read_text(encoding="utf-8")
+    dockerignore = (PROJECT_ROOT / ".dockerignore").read_text(encoding="utf-8")
+
+    assert dockerfile.startswith("FROM python:3.12.11-slim-bookworm")
+    assert "USER 10001:10001" in dockerfile
+    assert "HEALTHCHECK" in dockerfile
+    assert "COPY artifacts" not in dockerfile
+    assert "read_only: true" in compose
+    assert "no-new-privileges:true" in compose
+    assert "cap_drop:" in compose
+    assert "artifacts" in dockerignore
+    assert "password" not in compose.lower()

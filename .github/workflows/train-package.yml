@@ -26,7 +26,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -59,6 +59,43 @@ jobs:
         run: |
           ml-template-validate-package \
             --package artifacts/model-packages/${{ github.sha }}
+
+      - name: Build non-root serving image
+        run: docker build --tag ml-project-template-api:${{ github.sha }} .
+
+      - name: Start container with exact model package
+        run: |
+          docker run --detach \
+            --name prediction-api \
+            --publish 8000:8000 \
+            --read-only \
+            --tmpfs /tmp:size=128m \
+            --cap-drop ALL \
+            --security-opt no-new-privileges \
+            --volume "${{ github.workspace }}/artifacts/model-packages/${{ github.sha }}:/opt/model-package:ro" \
+            ml-project-template-api:${{ github.sha }}
+
+      - name: Wait for model readiness
+        run: python scripts/wait_for_service.py --timeout 90
+
+      - name: Exercise normal, invalid, and burst traffic
+        run: |
+          python scripts/smoke_service.py --mode normal
+          python scripts/smoke_service.py --mode invalid
+          python scripts/smoke_service.py --mode burst --count 10
+
+      - name: Compare container and direct model predictions
+        run: |
+          python scripts/compare_service_prediction.py \
+            --package artifacts/model-packages/${{ github.sha }}
+
+      - name: Show container logs after failure
+        if: failure()
+        run: docker logs prediction-api || true
+
+      - name: Stop smoke-test container
+        if: always()
+        run: docker rm --force prediction-api || true
 
       - name: Upload immutable model package
         uses: actions/upload-artifact@v4

@@ -17,7 +17,8 @@ Phase 1 established the reliable core, Phase 2 protects it with automated
 quality checks, Phase 3 adds evidence-based model comparison with MLflow, and
 Phase 4 adds deterministic data preparation with validated lineage.
 Phase 5 turns the selected model into a validated, commit-addressable package
-using the same entry point locally and in CI.
+using the same entry point locally and in CI. Phase 6 serves that exact package
+through a typed FastAPI boundary and a hardened, health-checked container.
 This is not yet the complete MLOps template; see
 [the extension plan](docs/project-extension-plan.md).
 
@@ -116,6 +117,19 @@ The bundle includes a standard MLflow Model, compatibility joblib model,
 metrics, model card, inference request, data/configuration evidence, and a
 SHA-256 inventory. Existing version directories are never overwritten.
 
+Serve a validated package locally:
+
+```powershell
+python -m pip install -e ".[serve]"
+ml-template-serve --package artifacts/model-packages/local-check
+```
+
+Then call `GET /live`, `GET /ready`, or `POST /predict` on
+`http://127.0.0.1:8000`. To exercise the container instead, copy `.env.example`
+to `.env`, set `MODEL_PACKAGE_HOST_PATH` to the absolute package directory, and
+run `docker compose up --build`. The model package is mounted read-only rather
+than copied into the reusable image.
+
 Predict from one raw record. The committed request deliberately includes a
 category that was not present during training:
 
@@ -168,7 +182,7 @@ Run the complete local quality gate on Windows:
 PowerShell -NoProfile -ExecutionPolicy Bypass -File scripts/check.ps1
 ```
 
-The gate checks formatting, lint, types, common security issues, 76 behavioral
+The gate checks formatting, lint, types, common security issues, 83 behavioral
 tests, and a 90% minimum branch-coverage threshold. GitHub Actions runs the same
 checks on Python 3.10 and 3.12 for pushes and pull requests.
 
@@ -236,7 +250,5 @@ for a real use case.
 
 ## What is deliberately deferred
 
-The following belong to later extension phases:
-
-- typed serving API and containers;
-- Prometheus, Grafana, alerts, drift, and operations documentation.
+Prometheus metrics, Grafana dashboards, alerts, drift detection, registry
+promotion, and production deployment remain later extension phases.

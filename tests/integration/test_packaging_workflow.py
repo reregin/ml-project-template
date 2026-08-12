@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 
 import mlflow.pyfunc
 import pandas as pd
 import pytest
+from fastapi.testclient import TestClient
 
 from ml_project_template.config import Settings
 from ml_project_template.example_data import write_example_data
@@ -17,6 +19,7 @@ from ml_project_template.model_package import (
     validate_model_package,
 )
 from ml_project_template.prepare_data import prepare_data
+from ml_project_template.service import create_app
 
 
 def test_build_validate_predict_and_detect_package_tampering(tmp_path: Path) -> None:
@@ -71,6 +74,17 @@ def test_build_validate_predict_and_detect_package_tampering(tmp_path: Path) -> 
     model = mlflow.pyfunc.load_model(str(result.package_path / "model"))
     prediction = model.predict(pd.DataFrame([request]))
     assert int(prediction[0]) in {0, 1}
+
+    mounted_package_path = tmp_path / "mounted-model-package"
+    shutil.copytree(result.package_path, mounted_package_path)
+    mounted_manifest = validate_model_package(mounted_package_path)
+    assert mounted_manifest["artifact_version"] == "abc1234"
+
+    with TestClient(create_app(mounted_package_path)) as client:
+        api_prediction = client.post("/predict", json=request)
+    assert api_prediction.status_code == 200
+    assert api_prediction.json()["prediction"] == int(prediction[0])
+    assert api_prediction.json()["model"]["artifact_version"] == "abc1234"
 
     with pytest.raises(FileExistsError, match="Immutable package already exists"):
         build_model_package(

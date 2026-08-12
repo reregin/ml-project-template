@@ -173,8 +173,6 @@ def validate_model_package(package_path: Path) -> dict[str, Any]:
         raise ModelPackageError("Package manifest is invalid.") from error
     if manifest.get("manifest_version") != PACKAGE_MANIFEST_VERSION:
         raise ModelPackageError("Unsupported package manifest version.")
-    if artifact_version != resolved_package.name:
-        raise ModelPackageError("Package directory must match its artifact version.")
     if (
         re.fullmatch(r"[0-9a-fA-F]{40}", artifact_version)
         and manifest.get("code_revision") != artifact_version

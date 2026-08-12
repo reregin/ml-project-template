@@ -750,13 +750,22 @@ Implemented evidence and decisions:
   pushes, or manual dispatch, uses the shared package entry point, applies
   concurrency cancellation, and retains `model-package-<commit SHA>` for 30
   days;
-- no container/registry publication exists yet. The workflow has read-only
-  repository permissions and cannot publish release images from pull requests;
-  conditional registry publication belongs with the Phase 6 container design.
+- Phase 6 now smoke-tests the package in a container. The workflow retains
+  read-only repository permissions and does not publish registry images;
+  environment-approved publication remains a later deployment decision.
 
 Learning focus: CI proves reproducibility; it is not merely a remote shell.
 
 ### Phase 6 — Serving and containerization
+
+**Status: completed and locally verified on 2026-08-11.** The selected Phase 5
+package now loads behind a typed FastAPI contract locally and in a pinned,
+non-root container. The service separates process liveness from model
+readiness, reports package identity with predictions, bounds request bodies,
+and returns stable 4xx/5xx error shapes. CI builds the image and exercises the
+same retained package with normal, invalid, burst, and direct-model parity
+checks. Prometheus instrumentation remains Phase 7 so API delivery and
+observability stay independently testable.
 
 Tasks:
 
@@ -778,6 +787,27 @@ Acceptance criteria:
 - no secret or default production password is committed.
 
 Learning focus: a model artifact becomes a versioned network service.
+
+Implemented evidence and decisions:
+
+- `service.py` owns typed `/live`, `/ready`, and `/predict` contracts; invalid
+  fields return stable `422` responses and oversized bodies return `413`;
+- model-package validation and MLflow loading happen at startup; load failure
+  leaves liveness healthy but readiness and prediction unavailable with `503`;
+- responses include artifact version, selected run ID, and immutable data
+  reference without exposing internal exception details;
+- package identity comes from its signed-off manifest, not its deployment mount
+  directory name, while full inventory and SHA-256 validation remain enforced;
+- `Dockerfile` pins the Python patch release, installs only serving extras, runs
+  as UID/GID 10001, and includes a readiness health check;
+- `compose.yaml` mounts the chosen package read-only and uses a read-only root,
+  bounded temporary filesystem, dropped capabilities, and no embedded secret;
+- smoke utilities cover normal, malformed, concurrent-burst, bounded readiness,
+  and local-model-versus-HTTP parity scenarios;
+- package CI builds but does not push the image, serves the exact SHA-addressed
+  package, runs all smoke/parity checks, and prints logs on failure;
+- `/metrics` is deliberately deferred to Phase 7, where metric names, labels,
+  dashboards, alerts, and runbooks can be designed as one observable contract.
 
 ### Phase 7 — Monitoring, dashboards, and alerts
 

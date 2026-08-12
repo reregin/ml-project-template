@@ -9,8 +9,8 @@ real project, and how to diagnose common failures.
 
 The handbook will grow with the implementation phases. It currently documents
 the completed **Phase 1 core**, **Phase 2 quality layer**, **Phase 3
-experiment-management layer**, **Phase 4 data layer**, and **Phase 5 model-build
-layer**:
+experiment-management layer**, **Phase 4 data layer**, **Phase 5 model-build
+layer**, and **Phase 6 serving layer**:
 
 - installable Python package;
 - deterministic, domain-neutral example data;
@@ -27,6 +27,8 @@ layer**:
 - MLflow baseline/tuned comparison, lineage, diagnostics, and signatures;
 - development-only model selection and an untouched final test set;
 - a packaging quality gate and generated model card;
+- a typed prediction API with distinct liveness and readiness contracts;
+- a pinned non-root container with read-only package mounting and health checks;
 - an idempotent data-preparation CLI with schema and output validation;
 - deterministic profiles and content-addressed lineage manifests;
 - random and forward-only temporal split policies;
@@ -1150,7 +1152,7 @@ repository secrets.
 
 ### 18.5 Behaviors protected by the suite
 
-The current 76 tests protect:
+The current 83 tests protect:
 
 - authoritative path resolution;
 - environment-based project-root configuration;
@@ -1176,6 +1178,9 @@ The current 76 tests protect:
   manifest-aware fitting, and chronological holdout behavior.
 - immutable package naming, complete inventories, file integrity, dual-format
   inference, required MLflow metadata, and failed-build cleanup.
+- typed service validation, stable error envelopes, request-size bounds,
+  liveness/readiness separation, model metadata, HTTP/direct prediction parity,
+  and hardened container/retraining-workflow contracts.
 
 ### 18.6 Coverage policy
 
@@ -1760,8 +1765,9 @@ requests, and relevant pushes to `main`. It:
 
 Concurrency cancellation prevents older builds for the same ref from wasting
 resources. Workflow permissions are read-only. Pull requests may build and
-upload temporary workflow artifacts for verification, but the workflow contains
-no Docker/registry publishing and has no package-write permission.
+upload temporary workflow artifacts for verification. Phase 6 adds a temporary
+Docker build and smoke run, but the workflow contains no registry push and has
+no package-write permission.
 
 This artifact retention is enough to prove the template. A real production
 system normally promotes the validated directory to long-lived object storage
@@ -1787,7 +1793,9 @@ PowerShell -NoProfile -ExecutionPolicy Bypass -File scripts/check.ps1
 
 Then perform the build and validation commands above. Confirm that:
 
-- the package directory name equals the requested version or commit SHA;
+- the stored package directory uses the requested version or commit SHA (a
+  deployment may mount it under a fixed alias because identity comes from the
+  validated manifest);
 - `package-manifest.json` lists every non-manifest file;
 - `model/MLmodel` contains a signature and input-example reference;
 - `metrics.json` reports `quality_gate_passed: true` and the Phase 4 data
@@ -1797,7 +1805,167 @@ Then perform the build and validation commands above. Confirm that:
 
 ---
 
-## 22. Related documentation
+## 22. Phase 6 serving and containerization
+
+### 22.1 What Phase 6 guarantees
+
+Phase 6 turns one already-validated Phase 5 package into a network boundary. It
+does not retrain, select a run, or reconstruct preprocessing at startup:
+
+```text
+validated package mounted read-only
+  -> verify manifest inventory, hashes, evidence, and smoke inference
+  -> load package/model as an MLflow pyfunc
+  -> become ready
+  -> validate raw JSON -> predict -> return model identity
+```
+
+The artifact version is read from `package-manifest.json`, not inferred from the
+mount-point name. This lets Docker, Kubernetes, or another runtime mount a
+versioned artifact at a stable path without weakening content integrity.
+
+### 22.2 Run the service locally
+
+Install the optional serving group and point the server at a complete package:
+
+```powershell
+python -m pip install -e ".[serve]"
+ml-template-serve `
+  --package artifacts/model-packages/local-check `
+  --host 127.0.0.1 `
+  --port 8000
+```
+
+Equivalent module invocation:
+
+```powershell
+python -m ml_project_template.service `
+  --package artifacts/model-packages/local-check
+```
+
+The process starts even if the package is missing or invalid so `/live` can
+describe process health. It does not become ready and cannot predict until the
+complete package validates and loads.
+
+### 22.3 HTTP contract
+
+`GET /live` answers `200` whenever the API process can answer HTTP:
+
+```json
+{"status":"live","api_version":"1"}
+```
+
+`GET /ready` answers `200` only after package validation and model loading. Its
+body identifies the exact model and data lineage:
+
+```json
+{
+  "artifact_version": "local-check",
+  "selected_run_id": "<mlflow-run-id>",
+  "data_reference": "sha256:<prepared-data-hash>"
+}
+```
+
+`POST /predict` accepts exactly the four generic Phase 1 fields. Numeric values
+must be finite. Category strings must be nonblank and no longer than 256
+characters. Extra fields are rejected. A successful response contains the
+integer prediction plus the same model metadata returned by readiness.
+
+Invalid input has a stable `422` envelope without echoing supplied values:
+
+```json
+{
+  "error": {
+    "code": "invalid_request",
+    "message": "Request validation failed.",
+    "details": [{"field": "numeric_feature_1", "type": "missing"}]
+  }
+}
+```
+
+Bodies larger than 16 KiB return `413 request_too_large`. Change the bound with
+`--max-request-bytes` or `MAX_REQUEST_BYTES`; keep it positive and large enough
+only for the declared request contract. An unavailable model returns
+`503 model_unavailable`. Unexpected prediction failures return a generic
+`500 internal_error`; details remain in server logs rather than the client.
+
+### 22.4 Run with Docker Compose
+
+Copy `.env.example` to `.env` and set `MODEL_PACKAGE_HOST_PATH` to the package
+directory. It may be absolute or relative to `compose.yaml`:
+
+```powershell
+Copy-Item .env.example .env
+docker compose config --quiet
+docker compose up --build
+```
+
+Compose publishes `${API_PORT:-8000}`, mounts the package at
+`/opt/model-package` read-only, makes the container root filesystem read-only,
+drops Linux capabilities, prevents privilege escalation, and provides only a
+bounded `/tmp`. The image runs as UID/GID 10001 and its health check calls
+`/ready`. The package is not baked into the image, so one image can serve
+different explicitly selected artifacts.
+
+`.env.example` contains paths and operational settings only. Do not add tokens,
+passwords, registry credentials, or cloud keys. Supply production secrets using
+the chosen platform's secret manager.
+
+### 22.5 Smoke and parity checks
+
+With either local Python or the container listening on port 8000:
+
+```powershell
+python scripts/wait_for_service.py --timeout 60
+python scripts/smoke_service.py --mode normal
+python scripts/smoke_service.py --mode invalid
+python scripts/smoke_service.py --mode burst --count 20
+python scripts/compare_service_prediction.py `
+  --package artifacts/model-packages/local-check
+```
+
+The last command loads the package model directly and proves both the prediction
+and artifact version match the HTTP response. These are bounded smoke checks,
+not capacity benchmarks. Use a dedicated load tool and representative data to
+establish production throughput and latency limits.
+
+The package workflow performs the same sequence in GitHub Actions: build the
+commit-tagged image, mount the exact commit-tagged artifact, wait for readiness,
+exercise normal/invalid/burst calls, compare direct and HTTP predictions, and
+remove the temporary container. It intentionally does not push an image.
+
+### 22.6 Timeouts, scaling, and failure modes
+
+- Client calls must set finite connection and response timeouts. The smoke tools
+  default to five seconds; choose production values from measured latency and a
+  caller retry budget.
+- Startup probes need more time than prediction calls because validation loads
+  and smoke-tests the serialized model. The container health check grants a
+  30-second start period; CI uses a bounded 90-second readiness wait.
+- One Uvicorn process loads one model copy. Scale with multiple containers when
+  memory permits; first measure model memory, CPU saturation, and tail latency.
+  Adding workers multiplies model memory and is not automatically an improvement.
+- Do not retry malformed `4xx` requests. Carefully bounded retries may make sense
+  for transient connection failures or `503`, preferably with backoff and jitter.
+- If `/live` fails, restart or replace the process. If `/live` succeeds while
+  `/ready` fails, inspect package availability, integrity, compatibility, mount
+  permissions, and the logged `model_load_failed` exception.
+- A read-only filesystem failure usually means code attempted runtime mutation.
+  Logs and temporary files must use platform output or the bounded `/tmp`, while
+  model packages remain immutable.
+- Serialized MLflow/sklearn artifacts are trusted-code inputs. Only mount bundles
+  from the trusted packaging workflow and an access-controlled artifact store.
+
+### 22.7 Why `/metrics` is not present yet
+
+Phase 6 establishes service correctness. Phase 7 will add `/metrics` together
+with bounded/privacy-safe labels, Prometheus configuration, dashboards, alerts,
+and runbooks. Adding an empty or inconsistently named endpoint now would create
+a false observability contract.
+
+---
+
+## 23. Related documentation
 
 - `README.md` — orientation and quick start
 - `docs/current-state-assessment.md` — what is good, resolved, partial, or missing

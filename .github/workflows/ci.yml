@@ -35,11 +35,21 @@ jobs:
 
       - name: Install package and development tools
         run: |
-          python -m pip install --upgrade pip
+          python -m pip install --upgrade "pip>=26.1.2" "setuptools>=83,<84"
           python -m pip install -e ".[dev,experiment,serve]"
 
       - name: Check dependency consistency
         run: python -m pip check
+
+      - name: Audit installed Python dependencies
+        run: |
+          python -m pip install pip-audit
+          python -m pip_audit --ignore-vuln PYSEC-2026-3552
+
+      # TEMPLATE_MAINTAINER_ONLY_START
+      - name: Verify all template markers are declared
+        run: python scripts/check_template_markers.py
+      # TEMPLATE_MAINTAINER_ONLY_END
 
       - name: Check formatting
         run: python -m ruff format --check .
@@ -55,3 +65,20 @@ jobs:
 
       - name: Test with branch coverage
         run: python -m pytest
+
+      # TEMPLATE_MAINTAINER_ONLY_START
+      - name: Prove a standalone generated project passes its quality gate
+        if: matrix.python-version == '3.12'
+        run: |
+          python scripts/instantiate_template.py \
+            --destination "${RUNNER_TEMP}/fresh-neutral-project" \
+            --project-name fresh-neutral-project \
+            --package-name fresh_neutral_project
+          python -m pip install -e "${RUNNER_TEMP}/fresh-neutral-project[dev,experiment,serve]"
+          cd "${RUNNER_TEMP}/fresh-neutral-project"
+          python -m ruff format --check .
+          python -m ruff check .
+          python -m mypy src
+          python -m bandit -q -r src app scripts
+          python -m pytest
+      # TEMPLATE_MAINTAINER_ONLY_END

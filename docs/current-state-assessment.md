@@ -19,7 +19,7 @@ production-ready system.
 ## 2. Honest summary
 
 The current repository is a **useful tabular data-science starter with a tested
-Phase 7 observable-serving core**. Its strongest ideas are separation of
+complete Phase 8 progressive template core**. Its strongest ideas are separation of
 experimentation from reusable code, a split-first leakage policy, structured
 data directories, an installable package, and one raw-input-to-prediction
 pipeline artifact.
@@ -40,15 +40,17 @@ container/Compose wiring, and CI smoke/parity checks. Phase 7 adds privacy-safe
 service metrics, provisioned Prometheus/Grafana, persistent local history,
 tested alert rules, response runbooks, and an explicit boundary between
 operational and statistical model health. Deployment and registry promotion
-remain later work.
+remain project-specific work. Phase 8 adds progressive quick starts, safe
+standalone instantiation, customization/removal guidance, template versioning,
+release assets, dependency/image security checks, and SBOM generation.
 
 Current maturity by track:
 
 | Track | Current status | Explanation |
 |---|---|---|
 | DS experimentation | Good foundation | Ordered notebooks, data layout, EDA prompts, split-first intent, preprocessing and training scaffolding exist. |
-| ML engineering | Observable Phase 7 baseline | The lifecycle is protected by 90 tests and at least 90% branch coverage; one validated package is consumed through a typed, instrumented service. |
-| MLOps | Locally observable service | Data/package CI, tracking, gates, serving, Prometheus/Grafana provisioning, alert tests, and runbooks exist; registry promotion and production deployment remain. |
+| ML engineering | Complete reusable baseline | The lifecycle is protected by 97 tests and at least 90% branch coverage; fresh renamed projects execute without the template checkout. |
+| MLOps | Complete local reference track | Packaging, serving, Prometheus/Grafana, alert tests, runbooks, scans, and SBOMs exist; registry promotion and production deployment remain project-specific. |
 
 The right strategy is to preserve this now-working baseline and add tests,
 experimentation, automation, and optional MLOps layers in order.
@@ -549,8 +551,8 @@ The README calls the template production-ready, although contracts, tests, CI,
 packaging, serving, deployment, monitoring, secrets, and releases are absent. Its
 final dependency code block also appears unfinished.
 
-**Resolved for current maturity:** the README describes Phase 1 honestly and
-lists deferred capabilities. Phase 8 will add final template ergonomics.
+**Resolved:** the README states the supported tracks and remaining project-
+specific decisions; Phase 8 adds the final template ergonomics and release layer.
 
 ### 6.8 Generic configuration conflicts with a domain-specific application
 
@@ -628,10 +630,10 @@ artifact contract.
 | **Completed:** provisioned dashboards | Makes observations reproducible | Phase 7 |
 | **Completed:** tested alerts and runbooks | Turns signals into operational action | Phase 7 |
 | **Completed as design boundary:** drift/data-quality strategy | Separates operational, output, feature, and delayed-ground-truth health | Phase 7 |
-| Progressive quick starts | Lets users stop at DS, ML, or MLOps layers | Phase 8 |
-| Template customization/removal guide | Prevents copied placeholders and unnecessary components | Phase 8 |
-| Release/version strategy | Treats the template itself as a maintained product | Phase 8 |
-| Security scanning and SBOM | Improves dependency and container supply-chain visibility | Phase 8 |
+| **Completed:** progressive quick starts | Lets users stop at DS, ML, or MLOps layers | Phase 8 |
+| **Completed:** template customization/removal guide | Prevents copied placeholders and unnecessary components | Phase 8 |
+| **Completed:** release/version strategy | Treats the template itself as a maintained product | Phase 8 |
+| **Completed:** security scanning and SBOM | Improves dependency and container supply-chain visibility | Phase 8 |
 
 ---
 
@@ -875,7 +877,7 @@ Recommended reading order for a future session:
 1. read this document to understand what exists and why;
 2. read Sections 1–6 of `project-extension-plan.md` for target principles and
    contracts;
-3. continue sequentially with Phase 8 after reviewing the Phase 7 baseline;
+3. instantiate a real project and complete its customization checklist;
 4. update this assessment as milestones are completed so it does not become a
    stale description of the repository.
 
@@ -884,5 +886,6 @@ enforces it through tests and CI, Phase 3 makes model comparison an explicit
 evidence trail, Phase 4 connects that evidence to validated prepared data, and
 Phase 5 turns the selected result into an immutable validated package. Phase 6
 turns that package into a typed, containerized network service. Phase 7 makes
-that service observable without confusing output telemetry with
-model quality. The next goal is Phase 8 release and template ergonomics.
+that service observable without confusing output telemetry with model quality.
+Phase 8 completes that product layer. Future work belongs to a concrete
+instantiated project's domain, registry, deployment platform, and owners.

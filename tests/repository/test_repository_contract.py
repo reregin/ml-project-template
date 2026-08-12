@@ -154,3 +154,85 @@ def test_metric_labels_are_bounded_and_privacy_safe() -> None:
     assert 'labelnames=("class",)' in monitoring_source
     for forbidden_label in ("user_id", "request_id", "run_id", "artifact_version", "feature"):
         assert f'"{forbidden_label}"' not in monitoring_source
+
+
+def test_progressive_tracks_and_customization_manifest_are_complete() -> None:
+    customization = (PROJECT_ROOT / "docs" / "template-customization.md").read_text(
+        encoding="utf-8"
+    )
+    manifest = json.loads((PROJECT_ROOT / "template-manifest.json").read_text(encoding="utf-8"))
+
+    assert "### DS-only track" in customization
+    assert "### ML-engineering track" in customization
+    assert "### Full MLOps reference track" in customization
+    for required in (
+        "project name",
+        "package name",
+        "target",
+        "task type",
+        "schema",
+        "metrics",
+        "threshold",
+        "ports",
+        "registry",
+        "owners",
+    ):
+        assert required in customization.lower()
+    assert set(manifest["identity_tokens"]) == {
+        "ML Project Template",
+        "ml-project-template",
+        "ml_project_template",
+    }
+
+
+def test_release_security_and_sbom_automation_is_declared() -> None:
+    release = (PROJECT_ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    package = (PROJECT_ROOT / ".github" / "workflows" / "train-package.yml").read_text(
+        encoding="utf-8"
+    )
+    dependency_review = (
+        PROJECT_ROOT / ".github" / "workflows" / "dependency-review.yml"
+    ).read_text(encoding="utf-8")
+
+    assert 'tags:\n      - "v*.*.*"' in release
+    assert "version mismatch" in release
+    assert "python -m pip_audit" in release
+    assert "format: cyclonedx" in release
+    assert "gh release create" in release
+    assert "trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25" in package
+    assert "severity: HIGH,CRITICAL" in package
+    assert "serving-image-sbom-${{ github.sha }}" in package
+    assert "actions/dependency-review-action@v4" in dependency_review
+    assert "--ignore-vuln PYSEC-2026-3552" in release
+    exceptions = (PROJECT_ROOT / "docs" / "security-exceptions.md").read_text(encoding="utf-8")
+    assert "Review no later than:** 2026-09-12" in exceptions
+    assert "cryptography 50" in exceptions
+
+
+def test_template_versions_and_changelog_agree() -> None:
+    import re
+
+    pyproject = (PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    version_match = re.search(r'^version = "([^"]+)"$', pyproject, re.MULTILINE)
+    assert version_match is not None
+    project_version = version_match.group(1)
+    package_init = (PROJECT_ROOT / "src" / "ml_project_template" / "__init__.py").read_text(
+        encoding="utf-8"
+    )
+    template_version = json.loads(
+        (PROJECT_ROOT / "template-manifest.json").read_text(encoding="utf-8")
+    )["template_version"]
+    changelog = (PROJECT_ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+
+    assert project_version == template_version == "1.0.0"
+    assert f'__version__ = "{project_version}"' in package_init
+    assert f"## [{project_version}]" in changelog
+
+
+def test_ci_verifies_a_standalone_generated_project() -> None:
+    workflow = (PROJECT_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+
+    assert "instantiate_template.py" in workflow
+    assert "${RUNNER_TEMP}/fresh-neutral-project" in workflow
+    assert 'cd "${RUNNER_TEMP}/fresh-neutral-project"' in workflow
+    assert "python -m pytest" in workflow

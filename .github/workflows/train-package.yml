@@ -86,6 +86,22 @@ jobs:
       - name: Build non-root serving image
         run: docker build --tag ml-project-template-api:${{ github.sha }} .
 
+      - name: Scan serving image for high and critical vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ml-project-template-api:${{ github.sha }}
+          format: table
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: 1
+
+      - name: Generate serving-image SBOM
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ml-project-template-api:${{ github.sha }}
+          format: cyclonedx
+          output: serving-image.sbom.cdx.json
+
       - name: Start container with exact model package
         run: |
           docker run --detach \
@@ -126,5 +142,13 @@ jobs:
         with:
           name: model-package-${{ github.sha }}
           path: artifacts/model-packages/${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload serving-image SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: serving-image-sbom-${{ github.sha }}
+          path: serving-image.sbom.cdx.json
           if-no-files-found: error
           retention-days: 30

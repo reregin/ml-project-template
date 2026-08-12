@@ -1,0 +1,61 @@
+name: Release template
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Verify tag matches package and template versions
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import pathlib
+          import tomllib
+
+          tag = os.environ["GITHUB_REF_NAME"].removeprefix("v")
+          package = tomllib.loads(pathlib.Path("pyproject.toml").read_text())["project"]["version"]
+          template = json.loads(pathlib.Path("template-manifest.json").read_text())["template_version"]
+          if len({tag, package, template}) != 1:
+              raise SystemExit(f"version mismatch: tag={tag} package={package} template={template}")
+          PY
+
+      - name: Build and verify Python distributions
+        run: |
+          python -m pip install --upgrade "pip>=26.1.2" "setuptools>=83,<84" build twine pip-audit
+          python -m build
+          python -m twine check dist/*
+          python -m pip_audit --ignore-vuln PYSEC-2026-3552
+
+      - name: Generate source SBOM
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: cyclonedx
+          output: dist/ml-project-template-${{ github.ref_name }}.sbom.cdx.json
+
+      - name: Create immutable GitHub release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" dist/* \
+            --title "${GITHUB_REF_NAME}" \
+            --generate-notes \
+            --verify-tag

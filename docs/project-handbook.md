@@ -10,7 +10,8 @@ real project, and how to diagnose common failures.
 The handbook will grow with the implementation phases. It currently documents
 the completed **Phase 1 core**, **Phase 2 quality layer**, **Phase 3
 experiment-management layer**, **Phase 4 data layer**, **Phase 5 model-build
-layer**, **Phase 6 serving layer**, and **Phase 7 observability layer**:
+layer**, **Phase 6 serving layer**, **Phase 7 observability layer**, and
+**Phase 8 template-product layer**:
 
 - installable Python package;
 - deterministic, domain-neutral example data;
@@ -36,9 +37,11 @@ layer**, **Phase 6 serving layer**, and **Phase 7 observability layer**:
 - path-filtered data CI with generated artifact upload;
 - one shared local/CI training-package command;
 - validated MLflow Model bundles with commit-SHA identity and retention.
+- progressive adoption/removal paths and a complete customization checklist;
+- safe standalone instantiation, template versioning, release assets, scans, and SBOMs.
 
-Later editions will add serving, monitoring, deployment, and release-promotion
-workflows.
+The generic phases are complete. Registry promotion and production deployment
+must be designed by each instantiated project for its actual platform and owners.
 
 ---
 
@@ -1153,7 +1156,7 @@ repository secrets.
 
 ### 18.5 Behaviors protected by the suite
 
-The current 90 tests protect:
+The current 97 tests protect:
 
 - authoritative path resolution;
 - environment-based project-root configuration;
@@ -2072,10 +2075,98 @@ Build project-specific statistical pipelines outside the request metric path.
 
 ---
 
-## 24. Related documentation
+## 24. Phase 8 template ergonomics and releases
+
+### 24.1 Adopt only what the project needs
+
+`docs/template-customization.md` is the authoritative guide for three stopping
+points: DS-only, ML engineering, and the full local MLOps reference. Core
+installation remains free of notebook, MLflow, API, Docker, and monitoring
+requirements. Removing an optional layer means removing its providers,
+consumers, dependencies, entry points, tests, workflow steps, and documentation
+together, followed by the complete quality gate.
+
+<!-- TEMPLATE_MAINTAINER_ONLY_START -->
+### 24.2 Create a standalone project
+
+```powershell
+python scripts/instantiate_template.py `
+  --destination D:\projects\example-risk-model `
+  --project-name example-risk-model `
+  --package-name example_risk_model
+```
+
+The destination must not exist and must be outside the template. The command
+renames human, distribution, and Python identities while excluding Git history,
+virtual environments, secrets, databases, caches, logs, and generated data/model
+artifacts. It does not invent the real task, schema, owners, registry, or policy.
+
+The test suite performs the same operation in a temporary directory and runs the
+renamed generate → prepare → train → predict lifecycle with only the generated
+`src/` on `PYTHONPATH`. This proves the result does not depend on the template
+checkout. A generator framework remains deferred until conditional variants or
+upgrade support make its extra abstraction useful.
+<!-- TEMPLATE_MAINTAINER_ONLY_END -->
+
+<!-- TEMPLATE_MAINTAINER_ONLY_START -->
+### 24.3 Complete customization
+
+`template-manifest.json` inventories the three replaceable identity tokens and
+intentional unresolved markers. List their locations with:
+
+```powershell
+python scripts/check_template_markers.py
+```
+
+After assigning the model package version, GitHub repository, Grafana secret,
+and operational owner—and completing the broader checklist—strict mode should
+return successfully:
+
+```powershell
+python scripts/check_template_markers.py --strict
+```
+
+The neutral schema is executable teaching content rather than a textual TODO;
+replace it by following the explicit data/model checklist and tests.
+<!-- TEMPLATE_MAINTAINER_ONLY_END -->
+
+### 24.4 Version and release the template
+
+The first complete template contract is version `1.0.0`. Keep the versions in
+`pyproject.toml`, package `__init__.py`, and `template-manifest.json` equal.
+Record user-visible changes in `CHANGELOG.md` under **Unreleased**, choose the
+Semantic Versioning impact, move entries into the dated release, and create a
+matching annotated tag such as `v1.0.1`.
+
+The tag workflow refuses mismatched versions, builds and checks distributions,
+audits dependencies, creates a CycloneDX source SBOM, and attaches immutable
+assets to a GitHub release. It does not publish to PyPI or a registry by default;
+an instantiated project must explicitly configure trusted publishing and its
+approval environment.
+
+### 24.5 Supply-chain checks
+
+- Dependabot proposes pip, GitHub Actions, and Docker updates.
+- Pull requests use GitHub dependency review.
+- quality CI audits the resolved Python environment with `pip-audit`.
+- model-package CI scans the built serving image for fixed high/critical
+  vulnerabilities and retains its CycloneDX SBOM.
+- Trivy is pinned to the verified `v0.36.0` action commit rather than a mutable
+  tag; review and update that SHA deliberately.
+
+Scanner findings require triage, ownership, and time-bounded exceptions; blindly
+disabling a gate is not remediation. SBOMs inventory components but do not prove
+that an artifact is safe.
+
+---
+
+## 25. Related documentation
 
 - `README.md` — orientation and quick start
 - `docs/current-state-assessment.md` — what is good, resolved, partial, or missing
 - `docs/project-extension-plan.md` — phased architecture and implementation plan
 - `docs/project-handbook.md` — detailed operating and customization reference
 - `docs/operations-runbook.md` — alerts, diagnosis, mitigation, and drills
+- `docs/template-customization.md` — tracks, instantiation, removal, and checklist
+- `docs/security-exceptions.md` — narrowly scoped audit exceptions and deadlines
+- `CHANGELOG.md` — template versions and notable changes

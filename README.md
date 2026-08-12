@@ -20,12 +20,35 @@ Phase 5 turns the selected model into a validated, commit-addressable package
 using the same entry point locally and in CI. Phase 6 serves that exact package
 through a typed FastAPI boundary and a hardened, health-checked container.
 Phase 7 instruments that boundary and provisions Prometheus, Grafana, tested
-alerts, retention, and operational runbooks.
-This is not yet the complete MLOps template; see
-[the extension plan](docs/project-extension-plan.md).
+alerts, retention, and operational runbooks. Phase 8 completes the reusable
+template product with progressive adoption paths, safe instantiation,
+customization checks, release versioning, dependency/image scanning, and SBOMs.
 
 For detailed setup, operation, customization, and troubleshooting instructions,
 use the [project handbook](docs/project-handbook.md).
+
+## Choose your track
+
+- **DS-only:** install core dependencies and stop after preparation, training,
+  evaluation, and local inference. Docker and monitoring are not required.
+- **ML engineering:** add MLflow experiments, quality gates, data lineage, and
+  immutable model packages.
+- **Full MLOps reference:** add typed containerized serving plus Prometheus,
+  Grafana, alerts, and runbooks.
+
+Exact commands and safe removal guidance are in the
+[track and customization guide](docs/template-customization.md).
+
+<!-- TEMPLATE_MAINTAINER_ONLY_START -->
+To create a renamed standalone project outside this repository:
+
+```powershell
+python scripts/instantiate_template.py `
+  --destination D:\projects\example-risk-model `
+  --project-name example-risk-model `
+  --package-name example_risk_model
+```
+<!-- TEMPLATE_MAINTAINER_ONLY_END -->
 
 ## What Phase 1 proves
 
@@ -186,7 +209,7 @@ Run the complete local quality gate on Windows:
 PowerShell -NoProfile -ExecutionPolicy Bypass -File scripts/check.ps1
 ```
 
-The gate checks formatting, lint, types, common security issues, 90 behavioral
+The gate checks formatting, lint, types, common security issues, 97 behavioral
 tests, and a 90% minimum branch-coverage threshold. GitHub Actions runs the same
 checks on Python 3.10 and 3.12 for pushes and pull requests.
 
@@ -260,3 +283,4 @@ for a real use case.
 Registry promotion, production deployment, and project-specific automated drift
 and delayed-ground-truth performance pipelines remain later work. Phase 7
 documents their design boundaries without pretending output counts are accuracy.
+They are project/platform decisions rather than missing generic template phases.

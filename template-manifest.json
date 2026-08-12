@@ -1,0 +1,14 @@
+{
+  "template_version": "1.0.0",
+  "identity_tokens": {
+    "ML Project Template": "Human-readable project title",
+    "ml-project-template": "Repository and distribution slug",
+    "ml_project_template": "Importable Python package"
+  },
+  "customization_markers": {
+    "GRAFANA_ADMIN_PASSWORD=": ".env.example intentionally requires a local secret",
+    "OWNER/REPOSITORY": "Changelog comparison links require the final GitHub repository",
+    "replace-with-version": ".env.example requires an actual model-package version",
+    "placeholder ownership": "Operations ownership must be assigned"
+  }
+}

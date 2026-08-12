@@ -862,6 +862,14 @@ Implemented evidence and decisions:
 
 ### Phase 8 — Release and template ergonomics
 
+**Status: completed and locally verified on 2026-08-12.** The repository now
+documents three progressive tracks and optional-layer removal, provides a safe
+identity-renaming instantiator, inventories customization markers, versions the
+template as `1.0.0`, maintains a changelog, automates tag releases, reviews and
+audits dependencies, scans the serving image, emits CycloneDX SBOMs, and proves
+a fresh standalone project can execute its core lifecycle without importing the
+template checkout.
+
 Tasks:
 
 - document DS-only, ML-engineering, and full-MLOps quick starts;
@@ -882,6 +890,30 @@ Acceptance criteria:
 - generated project CI passes without access to the template repository.
 
 Learning focus: templates are products and require usability testing.
+
+Implemented evidence and decisions:
+
+- `template-customization.md` provides DS-only, ML-engineering, and full-MLOps
+  commands plus a comprehensive identity/data/model/service/security checklist;
+- `instantiate_template.py` copies only reusable source/configuration files,
+  rejects unsafe destinations, and replaces distribution, import, and display
+  identities without copying Git state, secrets, environments, caches, or output;
+- an integration-style test creates `fresh-neutral-project` under pytest temp,
+  then generates, prepares, trains, and predicts using only its renamed package;
+- `template-manifest.json` inventories identities and intentional markers, while
+  `check_template_markers.py --strict` supports a final customization gate;
+- Copier/Cookiecutter is deferred until multiple conditional variants justify a
+  separate rendering language; the current mechanical substitutions are tested;
+- template/package version `1.0.0`, `CHANGELOG.md`, and tag-version validation
+  establish Semantic Versioning and prevent mismatched releases;
+- tag releases build/check Python distributions, audit dependencies, generate a
+  source CycloneDX SBOM, and attach assets to an immutable GitHub release;
+- pull requests receive dependency review, CI audits the resolved Python
+  environment, Dependabot covers pip/actions/Docker, and the serving workflow
+  performs SHA-pinned Trivy vulnerability and SBOM scans;
+- registry publishing remains deliberately unconfigured because its identity,
+  credentials, approvals, and environment policy belong to each instantiated
+  project.
 
 ---
 
@@ -945,15 +977,7 @@ Do not block Phase 1 on all of these, but record each decision when reached:
 
 ## 12. Suggested next working session
 
-Start with **Phase 0 and Phase 1 only**:
-
-1. run the current tiny example and capture its failures;
-2. choose the generic example dataset and input schema;
-3. introduce `pyproject.toml` and the installable package layout;
-4. unify preprocessing plus estimator into one artifact;
-5. make training and raw inference agree;
-6. replace the dependency dump;
-7. add the first end-to-end smoke test before extending infrastructure.
-
-Do not begin by copying the old Docker Compose stack. A reliable artifact and
-inference contract are prerequisites for every later layer.
+All planned extension phases are complete. The next session should instantiate
+a real project, complete `template-customization.md`, select the appropriate
+stopping track, and make only domain/platform decisions that the generic
+template cannot responsibly infer.

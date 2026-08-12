@@ -82,9 +82,12 @@ def test_build_validate_predict_and_detect_package_tampering(tmp_path: Path) -> 
 
     with TestClient(create_app(mounted_package_path)) as client:
         api_prediction = client.post("/predict", json=request)
+        service_metrics = client.get("/metrics")
     assert api_prediction.status_code == 200
     assert api_prediction.json()["prediction"] == int(prediction[0])
     assert api_prediction.json()["model"]["artifact_version"] == "abc1234"
+    assert "ml_model_ready 1.0" in service_metrics.text
+    assert "ml_prediction_requests_total 1.0" in service_metrics.text
 
     with pytest.raises(FileExistsError, match="Immutable package already exists"):
         build_model_package(

@@ -19,6 +19,8 @@ Phase 4 adds deterministic data preparation with validated lineage.
 Phase 5 turns the selected model into a validated, commit-addressable package
 using the same entry point locally and in CI. Phase 6 serves that exact package
 through a typed FastAPI boundary and a hardened, health-checked container.
+Phase 7 instruments that boundary and provisions Prometheus, Grafana, tested
+alerts, retention, and operational runbooks.
 This is not yet the complete MLOps template; see
 [the extension plan](docs/project-extension-plan.md).
 
@@ -124,11 +126,13 @@ python -m pip install -e ".[serve]"
 ml-template-serve --package artifacts/model-packages/local-check
 ```
 
-Then call `GET /live`, `GET /ready`, or `POST /predict` on
+Then call `GET /live`, `GET /ready`, `GET /metrics`, or `POST /predict` on
 `http://127.0.0.1:8000`. To exercise the container instead, copy `.env.example`
-to `.env`, set `MODEL_PACKAGE_HOST_PATH` to the absolute package directory, and
-run `docker compose up --build`. The model package is mounted read-only rather
-than copied into the reusable image.
+to `.env`, set `MODEL_PACKAGE_HOST_PATH` to the absolute package directory, set
+a non-default `GRAFANA_ADMIN_PASSWORD`, and run `docker compose up --build`.
+Open Grafana at `http://127.0.0.1:3000` or Prometheus at
+`http://127.0.0.1:9090`. The model package is mounted read-only rather than
+copied into the reusable image.
 
 Predict from one raw record. The committed request deliberately includes a
 category that was not present during training:
@@ -182,7 +186,7 @@ Run the complete local quality gate on Windows:
 PowerShell -NoProfile -ExecutionPolicy Bypass -File scripts/check.ps1
 ```
 
-The gate checks formatting, lint, types, common security issues, 83 behavioral
+The gate checks formatting, lint, types, common security issues, 90 behavioral
 tests, and a 90% minimum branch-coverage threshold. GitHub Actions runs the same
 checks on Python 3.10 and 3.12 for pushes and pull requests.
 
@@ -201,6 +205,7 @@ checks on Python 3.10 and 3.12 for pushes and pull requests.
 │   └── binary_classification/
 │       └── sample_request.json
 ├── models/                           # generated artifacts and metrics
+├── monitoring/                       # Prometheus/Grafana provisioning and alerts
 ├── notebooks/                        # experimental laboratory
 ├── src/
 │   └── ml_project_template/
@@ -212,12 +217,14 @@ checks on Python 3.10 and 3.12 for pushes and pull requests.
 │       ├── experiment.py             # MLflow comparison, selection, and gate
 │       ├── model_card.py              # generated evidence summary
 │       ├── model_package.py           # immutable build and validation contract
+│       ├── monitoring.py              # bounded Prometheus metric contract
 │       ├── pipeline.py               # preprocessing + estimator builder
 │       ├── prepare_data.py            # idempotent raw-to-prepared CLI
 │       ├── lineage.py                 # content hashes and manifest verification
 │       ├── tracking.py               # MLflow setup and lineage artifacts
 │       ├── train.py                  # authoritative training command
-│       └── predict.py                # authoritative inference command
+│       ├── predict.py                # authoritative inference command
+│       └── service.py                # typed monitored serving boundary
 ├── pyproject.toml                    # package and dependency groups
 └── requirements.txt                  # compatibility installation
 ```
@@ -250,5 +257,6 @@ for a real use case.
 
 ## What is deliberately deferred
 
-Prometheus metrics, Grafana dashboards, alerts, drift detection, registry
-promotion, and production deployment remain later extension phases.
+Registry promotion, production deployment, and project-specific automated drift
+and delayed-ground-truth performance pipelines remain later work. Phase 7
+documents their design boundaries without pretending output counts are accuracy.

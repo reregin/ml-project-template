@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -16,10 +17,13 @@ import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from pydantic import BaseModel, ConfigDict, Field
+from starlette.responses import Response
 
 from ml_project_template.config import configure_logging
 from ml_project_template.model_package import validate_model_package
+from ml_project_template.monitoring import ServiceMetrics
 
 LOGGER = logging.getLogger(__name__)
 API_VERSION = "1"
@@ -126,15 +130,18 @@ def create_app(
     *,
     runtime: ServiceRuntime | None = None,
     max_request_bytes: int | None = None,
+    metrics: ServiceMetrics | None = None,
 ) -> FastAPI:
     """Create an isolated application for production startup or tests."""
 
     service_runtime = runtime or ServiceRuntime(package_path or _default_package_path())
     request_limit = max_request_bytes or _default_request_limit()
+    service_metrics = metrics or ServiceMetrics()
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         service_runtime.load()
+        service_metrics.model_ready.set(1 if service_runtime.ready else 0)
         yield
 
     application = FastAPI(
@@ -145,14 +152,33 @@ def create_app(
 
     @application.middleware("http")
     async def enforce_request_size(request: Request, call_next: Any) -> Any:
-        if request.url.path == "/predict":
+        if request.url.path != "/predict":
+            return await call_next(request)
+
+        service_metrics.requests.inc()
+        service_metrics.in_progress.inc()
+        started = time.perf_counter()
+        status_code = 500
+        try:
             content_length = request.headers.get("content-length")
             if content_length and content_length.isdigit() and int(content_length) > request_limit:
-                return _error_response(413, "request_too_large", "Request body is too large.")
-            body = await request.body()
-            if len(body) > request_limit:
-                return _error_response(413, "request_too_large", "Request body is too large.")
-        return await call_next(request)
+                response = _error_response(413, "request_too_large", "Request body is too large.")
+            else:
+                body = await request.body()
+                if len(body) > request_limit:
+                    response = _error_response(
+                        413,
+                        "request_too_large",
+                        "Request body is too large.",
+                    )
+                else:
+                    response = await call_next(request)
+            status_code = response.status_code
+            return response
+        finally:
+            service_metrics.observe_response(status_code)
+            service_metrics.duration.observe(time.perf_counter() - started)
+            service_metrics.in_progress.dec()
 
     @application.exception_handler(RequestValidationError)
     async def validation_error_handler(_: Request, error: RequestValidationError) -> JSONResponse:
@@ -185,14 +211,24 @@ def create_app(
             return _error_response(503, "model_unavailable", "Model is not ready.")
         return service_runtime.metadata
 
+    @application.get("/metrics", include_in_schema=False)
+    async def metrics_endpoint() -> Response:
+        return Response(
+            content=generate_latest(service_metrics.registry),
+            headers={"Content-Type": CONTENT_TYPE_LATEST},
+        )
+
     @application.post("/predict", response_model=PredictionResponse)
     async def predict(request: PredictionRequest) -> PredictionResponse | JSONResponse:
         if not service_runtime.ready:
             return _error_response(503, "model_unavailable", "Model is not ready.")
-        return service_runtime.predict(request)
+        result = service_runtime.predict(request)
+        service_metrics.observe_prediction(result.prediction)
+        return result
 
     application.state.runtime = service_runtime
     application.state.max_request_bytes = request_limit
+    application.state.metrics = service_metrics
     return application
 
 

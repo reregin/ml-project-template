@@ -83,6 +83,43 @@ def test_live_ready_and_prediction_include_model_identity() -> None:
     }
 
 
+def test_metrics_distinguish_success_invalid_and_model_state() -> None:
+    app = create_app(runtime=ReadyRuntime(), max_request_bytes=128)
+    with TestClient(app) as client:
+        assert client.post("/predict", json=VALID_REQUEST).status_code == 200
+        assert client.post("/predict", json={"unexpected": "field"}).status_code == 422
+        assert (
+            client.post(
+                "/predict",
+                content=b"x" * 129,
+                headers={"content-type": "application/json"},
+            ).status_code
+            == 413
+        )
+        metrics = client.get("/metrics")
+
+    assert metrics.status_code == 200
+    assert metrics.headers["content-type"].startswith("text/plain")
+    assert "ml_model_ready 1.0" in metrics.text
+    assert "ml_prediction_requests_total 3.0" in metrics.text
+    assert 'ml_prediction_responses_total{outcome="success"} 1.0' in metrics.text
+    assert 'ml_prediction_responses_total{outcome="invalid"} 2.0' in metrics.text
+    assert "ml_prediction_duration_seconds_count 3.0" in metrics.text
+    assert "ml_prediction_rows_total 1.0" in metrics.text
+    assert 'ml_prediction_outputs_total{class="1"} 1.0' in metrics.text
+    assert "ml_prediction_requests_in_progress 0.0" in metrics.text
+
+
+def test_metrics_show_model_unavailable_without_exposing_load_error() -> None:
+    with TestClient(create_app(runtime=UnavailableRuntime())) as client:
+        assert client.post("/predict", json=VALID_REQUEST).status_code == 503
+        metrics = client.get("/metrics")
+
+    assert "ml_model_ready 0.0" in metrics.text
+    assert 'ml_prediction_responses_total{outcome="unavailable"} 1.0' in metrics.text
+    assert "ModelPackageError" not in metrics.text
+
+
 def test_invalid_and_oversized_requests_have_stable_4xx_errors() -> None:
     app = create_app(runtime=ReadyRuntime(), max_request_bytes=128)
     with TestClient(app) as client:

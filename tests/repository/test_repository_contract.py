@@ -59,6 +59,9 @@ def test_package_workflow_uses_shared_sha_addressed_build_without_publishing() -
     assert "docker build" in workflow
     assert "smoke_service.py --mode invalid" in workflow
     assert "compare_service_prediction.py" in workflow
+    assert "promtool" in workflow
+    assert "alerts.test.yml" in workflow
+    assert "check_metrics.py" in workflow
     assert "docker push" not in workflow
     assert "packages: write" not in workflow
 
@@ -76,4 +79,78 @@ def test_container_contract_is_non_root_read_only_and_model_external() -> None:
     assert "no-new-privileges:true" in compose
     assert "cap_drop:" in compose
     assert "artifacts" in dockerignore
-    assert "password" not in compose.lower()
+    assert "${GRAFANA_ADMIN_PASSWORD:?" in compose
+    assert "admin/admin" not in compose.lower()
+
+
+def test_monitoring_stack_is_pinned_provisioned_and_persistent() -> None:
+    import yaml
+
+    compose = yaml.safe_load((PROJECT_ROOT / "compose.yaml").read_text(encoding="utf-8"))
+    prometheus = yaml.safe_load(
+        (PROJECT_ROOT / "monitoring" / "prometheus" / "prometheus.yml").read_text(encoding="utf-8")
+    )
+    datasource = yaml.safe_load(
+        (
+            PROJECT_ROOT
+            / "monitoring"
+            / "grafana"
+            / "provisioning"
+            / "datasources"
+            / "prometheus.yml"
+        ).read_text(encoding="utf-8")
+    )
+    dashboard = json.loads(
+        (PROJECT_ROOT / "monitoring" / "grafana" / "dashboards" / "ml-service.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    services = compose["services"]
+    assert services["prometheus"]["image"] == "prom/prometheus:v3.13.1"
+    assert services["grafana"]["image"] == "grafana/grafana:13.1.0"
+    assert "prometheus-data:/prometheus" in services["prometheus"]["volumes"]
+    assert prometheus["scrape_configs"][0]["static_configs"][0]["targets"] == [
+        "prediction-api:8000"
+    ]
+    assert datasource["datasources"][0]["uid"] == "prometheus"
+    assert dashboard["uid"] == "ml-prediction-service"
+    assert len(dashboard["panels"]) >= 8
+
+
+def test_alerts_have_rule_tests_and_runbook_actions() -> None:
+    import yaml
+
+    alerts_path = PROJECT_ROOT / "monitoring" / "prometheus" / "alerts.yml"
+    tests_path = PROJECT_ROOT / "monitoring" / "prometheus" / "alerts.test.yml"
+    runbook_path = PROJECT_ROOT / "docs" / "operations-runbook.md"
+    alerts = yaml.safe_load(alerts_path.read_text(encoding="utf-8"))
+    rule_tests = yaml.safe_load(tests_path.read_text(encoding="utf-8"))
+    runbook = runbook_path.read_text(encoding="utf-8")
+    names = {rule["alert"] for rule in alerts["groups"][0]["rules"]}
+    tested_names = {
+        expectation["alertname"]
+        for test in rule_tests["tests"]
+        for expectation in test["alert_rule_test"]
+    }
+
+    assert names == {
+        "MLModelUnavailable",
+        "MLPredictionErrorRateHigh",
+        "MLPredictionLatencyHigh",
+    }
+    assert tested_names == names
+    assert "## Model unavailable" in runbook
+    assert "## High prediction error rate" in runbook
+    assert "## High prediction latency" in runbook
+
+
+def test_metric_labels_are_bounded_and_privacy_safe() -> None:
+    monitoring_source = (PROJECT_ROOT / "src" / "ml_project_template" / "monitoring.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'labelnames=("outcome",)' in monitoring_source
+    assert 'labelnames=("class",)' in monitoring_source
+    for forbidden_label in ("user_id", "request_id", "run_id", "artifact_version", "feature"):
+        assert f'"{forbidden_label}"' not in monitoring_source

@@ -1,0 +1,100 @@
+{
+  "annotations": {"list": []},
+  "editable": false,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"mappings": [{"options": {"0": {"color": "red", "text": "DOWN"}, "1": {"color": "green", "text": "READY"}}, "type": "value"}], "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}}, "overrides": []},
+      "gridPos": {"h": 5, "w": 4, "x": 0, "y": 0},
+      "id": 1,
+      "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "targets": [{"expr": "ml_model_ready", "refId": "A"}],
+      "title": "Model readiness",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "reqps"}, "overrides": []},
+      "gridPos": {"h": 5, "w": 5, "x": 4, "y": 0},
+      "id": 2,
+      "options": {"legend": {"displayMode": "hidden"}, "tooltip": {"mode": "single"}},
+      "targets": [{"expr": "rate(ml_prediction_requests_total[1m])", "legendFormat": "requests", "refId": "A"}],
+      "title": "Prediction request rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"min": 0, "unit": "percentunit"}, "overrides": []},
+      "gridPos": {"h": 5, "w": 5, "x": 9, "y": 0},
+      "id": 3,
+      "options": {"legend": {"displayMode": "hidden"}, "tooltip": {"mode": "single"}},
+      "targets": [{"expr": "sum(rate(ml_prediction_responses_total{outcome=~\"invalid|unavailable|error\"}[5m])) / clamp_min(sum(rate(ml_prediction_requests_total[5m])), 0.001)", "legendFormat": "error ratio", "refId": "A"}],
+      "title": "Operational error ratio",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"min": 0, "unit": "s"}, "overrides": []},
+      "gridPos": {"h": 5, "w": 5, "x": 14, "y": 0},
+      "id": 4,
+      "options": {"legend": {"displayMode": "hidden"}, "tooltip": {"mode": "single"}},
+      "targets": [{"expr": "histogram_quantile(0.95, sum(rate(ml_prediction_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p95", "refId": "A"}],
+      "title": "Prediction p95 latency",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"min": 0}, "overrides": []},
+      "gridPos": {"h": 5, "w": 5, "x": 19, "y": 0},
+      "id": 5,
+      "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "center", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "targets": [{"expr": "ml_prediction_requests_in_progress", "refId": "A"}],
+      "title": "Requests in progress",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "rows/s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 5},
+      "id": 6,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "single"}},
+      "targets": [{"expr": "rate(ml_prediction_rows_total[5m])", "legendFormat": "rows", "refId": "A"}],
+      "title": "Successfully predicted rows",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 5},
+      "id": 7,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+      "targets": [{"expr": "sum by (outcome) (rate(ml_prediction_responses_total[5m]))", "legendFormat": "{{outcome}}", "refId": "A"}],
+      "title": "Responses by operational outcome",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "description": "Observed model outputs are not model accuracy. Accuracy requires delayed ground truth.",
+      "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 5},
+      "id": 8,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+      "targets": [{"expr": "sum by (class) (rate(ml_prediction_outputs_total[5m]))", "legendFormat": "class {{class}}", "refId": "A"}],
+      "title": "Observed output rate (not accuracy)",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 41,
+  "tags": ["ml", "serving", "template"],
+  "templating": {"list": []},
+  "time": {"from": "now-30m", "to": "now"},
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "ML Prediction Service",
+  "uid": "ml-prediction-service",
+  "version": 1
+}

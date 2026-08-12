@@ -6,13 +6,21 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/train-package.yml"
+      - "Dockerfile"
+      - "compose.yaml"
+      - "monitoring/**"
       - "pyproject.toml"
+      - "scripts/*.py"
       - "examples/binary_classification/sample_request.json"
       - "src/ml_project_template/**"
   pull_request:
     paths:
       - ".github/workflows/train-package.yml"
+      - "Dockerfile"
+      - "compose.yaml"
+      - "monitoring/**"
       - "pyproject.toml"
+      - "scripts/*.py"
       - "examples/binary_classification/sample_request.json"
       - "src/ml_project_template/**"
 
@@ -60,6 +68,21 @@ jobs:
           ml-template-validate-package \
             --package artifacts/model-packages/${{ github.sha }}
 
+      - name: Validate Prometheus configuration and alert scenarios
+        run: |
+          docker run --rm \
+            --volume "${{ github.workspace }}/monitoring/prometheus:/etc/prometheus:ro" \
+            --workdir /etc/prometheus \
+            --entrypoint promtool \
+            prom/prometheus:v3.13.1 \
+            check config /etc/prometheus/prometheus.yml
+          docker run --rm \
+            --volume "${{ github.workspace }}/monitoring/prometheus:/etc/prometheus:ro" \
+            --workdir /etc/prometheus \
+            --entrypoint promtool \
+            prom/prometheus:v3.13.1 \
+            test rules /etc/prometheus/alerts.test.yml
+
       - name: Build non-root serving image
         run: docker build --tag ml-project-template-api:${{ github.sha }} .
 
@@ -83,6 +106,7 @@ jobs:
           python scripts/smoke_service.py --mode normal
           python scripts/smoke_service.py --mode invalid
           python scripts/smoke_service.py --mode burst --count 10
+          python scripts/check_metrics.py
 
       - name: Compare container and direct model predictions
         run: |

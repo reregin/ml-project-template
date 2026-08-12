@@ -10,7 +10,7 @@ real project, and how to diagnose common failures.
 The handbook will grow with the implementation phases. It currently documents
 the completed **Phase 1 core**, **Phase 2 quality layer**, **Phase 3
 experiment-management layer**, **Phase 4 data layer**, **Phase 5 model-build
-layer**, and **Phase 6 serving layer**:
+layer**, **Phase 6 serving layer**, and **Phase 7 observability layer**:
 
 - installable Python package;
 - deterministic, domain-neutral example data;
@@ -29,6 +29,7 @@ layer**, and **Phase 6 serving layer**:
 - a packaging quality gate and generated model card;
 - a typed prediction API with distinct liveness and readiness contracts;
 - a pinned non-root container with read-only package mounting and health checks;
+- bounded Prometheus metrics, provisioned dashboards, tested alerts, and runbooks;
 - an idempotent data-preparation CLI with schema and output validation;
 - deterministic profiles and content-addressed lineage manifests;
 - random and forward-only temporal split policies;
@@ -1152,7 +1153,7 @@ repository secrets.
 
 ### 18.5 Behaviors protected by the suite
 
-The current 83 tests protect:
+The current 90 tests protect:
 
 - authoritative path resolution;
 - environment-based project-root configuration;
@@ -1956,18 +1957,125 @@ remove the temporary container. It intentionally does not push an image.
 - Serialized MLflow/sklearn artifacts are trusted-code inputs. Only mount bundles
   from the trusted packaging workflow and an access-controlled artifact store.
 
-### 22.7 Why `/metrics` is not present yet
+### 22.7 Metrics boundary
 
-Phase 6 establishes service correctness. Phase 7 will add `/metrics` together
-with bounded/privacy-safe labels, Prometheus configuration, dashboards, alerts,
-and runbooks. Adding an empty or inconsistently named endpoint now would create
-a false observability contract.
+Phase 7 adds `GET /metrics`. The endpoint exposes only aggregate operational
+signals; it never exports raw feature values, users, request IDs, artifact
+versions, MLflow run IDs, or data references as labels. Restrict it to the
+monitoring network in a real deployment rather than exposing it publicly.
 
 ---
 
-## 23. Related documentation
+## 23. Phase 7 monitoring, dashboards, and alerts
+
+### 23.1 What Phase 7 measures
+
+`monitoring.py` creates an isolated registry for each application instance and
+exports:
+
+| Metric | Meaning |
+|---|---|
+| `ml_prediction_requests_total` | Prediction requests received |
+| `ml_prediction_responses_total{outcome}` | `success`, `invalid`, `unavailable`, or `error` |
+| `ml_prediction_duration_seconds` | Validation-plus-inference latency histogram |
+| `ml_prediction_rows_total` | Successfully predicted rows |
+| `ml_prediction_outputs_total{class}` | Bounded `0`, `1`, or `other` output count |
+| `ml_prediction_requests_in_progress` | Current prediction work |
+| `ml_model_ready` | Validated model availability as 1 or 0 |
+
+The output counter describes observed outputs, not accuracy. Accuracy, precision,
+recall, calibration, and business impact require representative ground truth.
+
+### 23.2 Start the observable local stack
+
+Copy `.env.example` to ignored `.env`, set the exact package path, and supply a
+non-default Grafana password:
+
+```powershell
+Copy-Item .env.example .env
+# Edit MODEL_PACKAGE_HOST_PATH and GRAFANA_ADMIN_PASSWORD.
+docker compose config --quiet
+docker compose up --build
+```
+
+Endpoints:
+
+- prediction API: `http://127.0.0.1:8000`;
+- Prometheus: `http://127.0.0.1:9090`;
+- Grafana: `http://127.0.0.1:3000`.
+
+Grafana automatically loads the Prometheus datasource and **ML Prediction
+Service** dashboard. Anonymous access and self-signup are disabled. The example
+does not commit a default admin password.
+
+### 23.3 Generate and inspect signals
+
+```powershell
+python scripts/wait_for_service.py --timeout 60
+python scripts/smoke_service.py --mode normal
+python scripts/smoke_service.py --mode invalid
+python scripts/smoke_service.py --mode burst --count 50
+python scripts/check_metrics.py
+```
+
+Normal traffic raises requests, successful responses, rows, output counts, and
+duration buckets. Invalid traffic raises only the `invalid` outcome. Burst
+traffic changes rate and in-progress panels. A service with an unloadable model
+keeps `/live` healthy while `ml_model_ready` is 0 and predictions count as
+`unavailable`.
+
+### 23.4 Alerts and deterministic tests
+
+`monitoring/prometheus/alerts.yml` defines:
+
+- `MLModelUnavailable`: readiness below 1 for 30 seconds;
+- `MLPredictionErrorRateHigh`: bad operational outcomes above 10% for two minutes;
+- `MLPredictionLatencyHigh`: five-minute p95 above one second for two minutes.
+
+Thresholds are template defaults, not universal objectives. Change the explicit
+expressions and durations to match measured traffic and agreed service goals.
+Then validate configuration and all synthetic rule scenarios:
+
+```powershell
+docker compose exec prometheus promtool check config /etc/prometheus/prometheus.yml
+docker compose exec prometheus `
+  promtool test rules /etc/prometheus/alerts.test.yml
+```
+
+Package CI runs those checks on a clean Prometheus image and verifies the metric
+contract after normal, invalid, and burst container traffic.
+
+### 23.5 Retention and notification security
+
+Prometheus uses the `prometheus-data` volume with seven-day default retention;
+set `PROMETHEUS_RETENTION` for a different local window. Grafana uses
+`grafana-data`, while datasource/dashboard definitions remain committed. Service
+counter resets do not delete Prometheus history, and PromQL `rate()` handles
+counter resets. `docker compose down -v` deliberately deletes local history.
+
+Notification endpoints and credentials do not belong in the repository. Connect
+the rules to an externally configured Alertmanager or managed observability
+system and store contact secrets in its secret manager.
+
+### 23.6 Operate and extend monitoring
+
+Use `docs/operations-runbook.md` for model-down, error-rate, and latency response,
+alert drills, retention, and escalation guidance. It also separates four ideas:
+
+1. operational health: availability, errors, and latency;
+2. data quality: schema, missingness, and valid ranges;
+3. feature/output drift: privacy-reviewed aggregate window comparisons;
+4. true performance: predictions joined securely to delayed ground truth.
+
+Prometheus labels are unsuitable for raw features or per-prediction identifiers.
+Build project-specific statistical pipelines outside the request metric path.
+
+---
+
+## 24. Related documentation
 
 - `README.md` — orientation and quick start
 - `docs/current-state-assessment.md` — what is good, resolved, partial, or missing
 - `docs/project-extension-plan.md` — phased architecture and implementation plan
 - `docs/project-handbook.md` — detailed operating and customization reference
+- `docs/operations-runbook.md` — alerts, diagnosis, mitigation, and drills

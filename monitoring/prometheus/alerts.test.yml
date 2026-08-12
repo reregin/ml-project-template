@@ -1,0 +1,61 @@
+rule_files:
+  - alerts.yml
+
+evaluation_interval: 5s
+
+tests:
+  - name: model unavailable becomes critical
+    interval: 5s
+    input_series:
+      - series: ml_model_ready
+        values: 0+0x20
+    alert_rule_test:
+      - eval_time: 35s
+        alertname: MLModelUnavailable
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+            exp_annotations:
+              summary: Prediction model is unavailable
+              description: The API is alive but its validated model package is not ready.
+              runbook: docs/operations-runbook.md#model-unavailable
+
+  - name: sustained invalid traffic raises error alert
+    interval: 5s
+    input_series:
+      - series: ml_prediction_requests_total
+        values: 0+10x80
+      - series: 'ml_prediction_responses_total{outcome="invalid"}'
+        values: 0+2x80
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: MLPredictionErrorRateHigh
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: Prediction error rate exceeds 10 percent
+              description: Invalid, unavailable, or failed predictions exceed the configured ratio.
+              runbook: docs/operations-runbook.md#high-prediction-error-rate
+
+  - name: sustained slow histogram raises latency alert
+    interval: 5s
+    input_series:
+      - series: 'ml_prediction_duration_seconds_bucket{le="0.5"}'
+        values: 0+0x100
+      - series: 'ml_prediction_duration_seconds_bucket{le="1.0"}'
+        values: 0+0x100
+      - series: 'ml_prediction_duration_seconds_bucket{le="2.5"}'
+        values: 0+10x100
+      - series: 'ml_prediction_duration_seconds_bucket{le="+Inf"}'
+        values: 0+10x100
+    alert_rule_test:
+      - eval_time: 7m
+        alertname: MLPredictionLatencyHigh
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: Prediction p95 latency exceeds one second
+              description: End-to-end prediction latency exceeds the configured threshold.
+              runbook: docs/operations-runbook.md#high-prediction-latency

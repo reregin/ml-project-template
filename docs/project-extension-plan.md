@@ -811,6 +811,13 @@ Implemented evidence and decisions:
 
 ### Phase 7 — Monitoring, dashboards, and alerts
 
+**Status: completed and locally verified on 2026-08-12.** The Phase 6 service
+now exposes a bounded-cardinality `/metrics` contract. Compose provisions pinned
+Prometheus and Grafana services, durable local storage, a generic dashboard,
+three operational alert rules, deterministic rule tests, and a response
+runbook. Statistical monitoring is documented separately so output telemetry is
+not mislabeled as accuracy.
+
 Tasks:
 
 - instrument rate, errors, duration, availability, rows, and in-progress requests;
@@ -831,6 +838,27 @@ Acceptance criteria:
 - monitoring survives service restarts according to documented retention.
 
 Learning focus: distinguish system health from statistical model health.
+
+Implemented evidence and decisions:
+
+- prediction metrics cover requests, bounded outcomes, duration histogram,
+  successful rows, bounded output classes, in-progress work, and model readiness;
+- no raw features, user/request IDs, model versions, run IDs, or data references
+  are metric labels;
+- Prometheus `3.13.1` scrapes every five seconds and stores seven days by default
+  in a named volume; Grafana `13.1.0` provisions its datasource and dashboard;
+- Grafana requires an externally supplied admin password and anonymous access is
+  disabled; notification routes and their secrets remain outside Git;
+- alerts cover model unavailable, sustained operational error rate, and p95
+  latency, with explicit thresholds and matching runbook anchors;
+- `alerts.test.yml` proves all three rules through deterministic synthetic time
+  series, and package CI runs both Prometheus config and rule tests;
+- normal, invalid, and burst traffic plus a metrics-contract check run against
+  the packaged service in CI;
+- service restarts reset process counters but preserve historical Prometheus
+  samples; PromQL counter functions correctly account for resets;
+- the operations runbook separately defines data quality, feature/output drift,
+  and delayed-ground-truth performance responsibilities.
 
 ### Phase 8 — Release and template ergonomics
 

@@ -19,7 +19,7 @@ production-ready system.
 ## 2. Honest summary
 
 The current repository is a **useful tabular data-science starter with a tested
-Phase 6 serving core**. Its strongest ideas are separation of
+Phase 7 observable-serving core**. Its strongest ideas are separation of
 experimentation from reusable code, a split-first leakage policy, structured
 data directories, an installable package, and one raw-input-to-prediction
 pipeline artifact.
@@ -36,16 +36,19 @@ CI. Phase 5 now adds a shared local/CI package command, standard MLflow Model
 bundle, commit-addressed identity, complete output validation, atomic
 publication, and retained CI artifacts. Phase 6 adds a typed prediction API,
 separate liveness/readiness behavior, stable errors, package metadata, hardened
-container/Compose wiring, and CI smoke/parity checks. Metrics, deployment,
-promotion, and operations remain later phases.
+container/Compose wiring, and CI smoke/parity checks. Phase 7 adds privacy-safe
+service metrics, provisioned Prometheus/Grafana, persistent local history,
+tested alert rules, response runbooks, and an explicit boundary between
+operational and statistical model health. Deployment and registry promotion
+remain later work.
 
 Current maturity by track:
 
 | Track | Current status | Explanation |
 |---|---|---|
 | DS experimentation | Good foundation | Ordered notebooks, data layout, EDA prompts, split-first intent, preprocessing and training scaffolding exist. |
-| ML engineering | Served Phase 6 baseline | The lifecycle is protected by 83 tests and at least 90% branch coverage; the validated MLflow-compatible evidence bundle is consumed through one typed service. |
-| MLOps | Containerized serving foundation | Data/package CI, experiment tracking, quality gates, service contracts, and hardened container smoke checks exist; registry promotion, monitoring, alerting, and deployment workflows remain. |
+| ML engineering | Observable Phase 7 baseline | The lifecycle is protected by 90 tests and at least 90% branch coverage; one validated package is consumed through a typed, instrumented service. |
+| MLOps | Locally observable service | Data/package CI, tracking, gates, serving, Prometheus/Grafana provisioning, alert tests, and runbooks exist; registry promotion and production deployment remain. |
 
 The right strategy is to preserve this now-working baseline and add tests,
 experimentation, automation, and optional MLOps layers in order.
@@ -621,10 +624,10 @@ artifact contract.
 | **Completed:** liveness/readiness and health checks | Distinguishes process health from model readiness | Phase 6 |
 | **Completed:** container build and Compose example | Makes the serving environment reproducible | Phase 6 |
 | **Completed:** load/smoke scenarios | Exercises normal, burst, invalid, and failure behavior | Phase 6 |
-| Service metrics | Measures request rate, errors, duration, and availability | Phase 7 |
-| Provisioned dashboards | Makes observations reproducible | Phase 7 |
-| Tested alerts and runbooks | Turns signals into operational action | Phase 7 |
-| Drift/data-quality design | Detects statistical changes beyond service health | Phase 7 |
+| **Completed:** service metrics | Measures request rate, errors, duration, rows, work, outputs, and availability | Phase 7 |
+| **Completed:** provisioned dashboards | Makes observations reproducible | Phase 7 |
+| **Completed:** tested alerts and runbooks | Turns signals into operational action | Phase 7 |
+| **Completed as design boundary:** drift/data-quality strategy | Separates operational, output, feature, and delayed-ground-truth health | Phase 7 |
 | Progressive quick starts | Lets users stop at DS, ML, or MLOps layers | Phase 8 |
 | Template customization/removal guide | Prevents copied placeholders and unnecessary components | Phase 8 |
 | Release/version strategy | Treats the template itself as a maintained product | Phase 8 |
@@ -820,7 +823,7 @@ Some ideas are easy to confuse; these distinctions should guide future changes:
 
 ## 10. What can reasonably be used today
 
-After Phase 6, the repository can be used safely as:
+After Phase 7, the repository can be used safely as:
 
 - a reference layout for a small tabular DS project;
 - a checklist for leakage-aware EDA and preprocessing;
@@ -845,6 +848,10 @@ After Phase 6, the repository can be used safely as:
 - a non-root, read-only container example that mounts an exact package version;
 - a CI example that compares direct MLflow and HTTP predictions before retaining
   the package.
+- a locally persistent Prometheus/Grafana reference stack with a provisioned
+  service dashboard;
+- a privacy-safe bounded metric contract and tested operational alert rules;
+- a runbook-backed example of model-down, error-rate, and latency response.
 
 It should not yet be trusted unchanged as:
 
@@ -853,7 +860,7 @@ It should not yet be trusted unchanged as:
 - a centrally governed experiment registry or promotion system;
 - a production deployment or registry-promotion template;
 - an automated retraining system;
-- a monitored or self-operating ML service.
+- a self-healing production ML platform or automated statistical-drift system.
 
 ---
 
@@ -868,7 +875,7 @@ Recommended reading order for a future session:
 1. read this document to understand what exists and why;
 2. read Sections 1–6 of `project-extension-plan.md` for target principles and
    contracts;
-3. continue sequentially with Phase 7 after reviewing the Phase 6 baseline;
+3. continue sequentially with Phase 8 after reviewing the Phase 7 baseline;
 4. update this assessment as milestones are completed so it does not become a
    stale description of the repository.
 
@@ -876,5 +883,6 @@ Phase 1 proved one clean raw-input-to-prediction path, Phase 2 continuously
 enforces it through tests and CI, Phase 3 makes model comparison an explicit
 evidence trail, Phase 4 connects that evidence to validated prepared data, and
 Phase 5 turns the selected result into an immutable validated package. Phase 6
-turns that package into a typed, containerized network service. The next goal is
-Phase 7 monitoring, dashboards, alerts, and operational guidance.
+turns that package into a typed, containerized network service. Phase 7 makes
+that service observable without confusing output telemetry with
+model quality. The next goal is Phase 8 release and template ergonomics.

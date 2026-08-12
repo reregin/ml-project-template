@@ -1,0 +1,37 @@
+groups:
+  - name: ml-service
+    interval: 5s
+    rules:
+      - alert: MLModelUnavailable
+        expr: ml_model_ready < 1
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: Prediction model is unavailable
+          description: The API is alive but its validated model package is not ready.
+          runbook: docs/operations-runbook.md#model-unavailable
+
+      - alert: MLPredictionErrorRateHigh
+        expr: >-
+          sum(rate(ml_prediction_responses_total{outcome=~"invalid|unavailable|error"}[2m]))
+          / clamp_min(sum(rate(ml_prediction_requests_total[2m])), 0.001) > 0.10
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Prediction error rate exceeds 10 percent
+          description: Invalid, unavailable, or failed predictions exceed the configured ratio.
+          runbook: docs/operations-runbook.md#high-prediction-error-rate
+
+      - alert: MLPredictionLatencyHigh
+        expr: >-
+          histogram_quantile(0.95,
+          sum(rate(ml_prediction_duration_seconds_bucket[5m])) by (le)) > 1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Prediction p95 latency exceeds one second
+          description: End-to-end prediction latency exceeds the configured threshold.
+          runbook: docs/operations-runbook.md#high-prediction-latency

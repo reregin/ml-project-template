@@ -62,7 +62,7 @@ jobs:
         run: python -c "from pathlib import Path; from ml_project_template.lineage import verify_data_manifest; verify_data_manifest(Path('artifacts/data/training.csv'), Path('artifacts/data/manifest.json'))"
 
       - name: Upload prepared-data evidence
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: prepared-data-${{ github.sha }}
           path: |
